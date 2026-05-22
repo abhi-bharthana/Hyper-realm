@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyper-realm | Identity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1a1a2e, #0f0f0f);
+            overflow: hidden;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+        }
+        .neon-border:focus {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            border-color: #3b82f6;
+        }
+        .bg-animate {
+            position: absolute;
+            top: -50%; left: -50%; width: 200%; height: 200%;
+            background: conic-gradient(from 0deg, transparent, #1e3a8a, transparent);
+            animation: rotate 15s linear infinite;
+            z-index: -1; opacity: 0.15;
+        }
+        @keyframes rotate { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen text-white">
+
+    <div class="bg-animate"></div>
+
+    <div class="glass w-full max-w-md p-8 rounded-3xl text-center relative z-10 transition-all duration-500">
+        
+        <div class="mb-8">
+            <h1 class="text-4xl font-extrabold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-300">
+                HYPER-REALM
+            </h1>
+            <p id="sub-text" class="text-gray-400 text-sm mt-2 tracking-widest uppercase">Universal Identity System</p>
+        </div>
+
+        <div id="login-section" class="space-y-6">
+            <div class="py-4">
+                <p class="text-gray-300 mb-6 italic text-sm">Secure entry via Neural-Auth</p>
+                <div class="flex justify-center">
+                    <div id="g_id_onload"
+                         data-client_id="306788201596-phllg7davd9ib2vkm1adrqrrv8r6ogoi.apps.googleusercontent.com"
+                         data-callback="handleGoogleLogin">
+                    </div>
+                    <div class="g_id_signin" data-type="standard" data-theme="filled_black" data-size="large" data-shape="pill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="onboarding-section" class="hidden space-y-4">
+            <h2 class="text-xl font-semibold text-blue-400">Initialize Identity</h2>
+            <div class="space-y-3">
+                <input type="text" id="username" placeholder="Unique Username" 
+                       class="w-full bg-black/40 border border-white/10 p-3 rounded-xl outline-none neon-border transition-all">
+                <div class="flex gap-2">
+                    <input type="text" id="first_name" placeholder="First Name" 
+                           class="w-1/2 bg-black/40 border border-white/10 p-3 rounded-xl outline-none neon-border">
+                    <input type="text" id="last_name" placeholder="Last Name" 
+                           class="w-1/2 bg-black/40 border border-white/10 p-3 rounded-xl outline-none neon-border">
+                </div>
+                <input type="text" id="nickname" placeholder="Nickname (Optional)" 
+                       class="w-full bg-black/40 border border-white/10 p-3 rounded-xl outline-none neon-border">
+            </div>
+            <p id="val-error" class="text-red-400 text-xs text-left px-2"></p>
+            <button onclick="submitOnboarding()" 
+                    class="w-full py-4 mt-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold tracking-wide transition-all active:scale-95 shadow-lg shadow-blue-900/20">
+                COMPLETE INITIALIZATION
+            </button>
+        </div>
+
+        <div id="dashboard" class="hidden space-y-6 py-4">
+            <div class="w-20 h-20 bg-gradient-to-tr from-blue-500 to-cyan-400 rounded-full mx-auto flex items-center justify-center shadow-2xl">
+                <span class="text-3xl font-bold italic">H</span>
+            </div>
+            <h2 id="welcome-msg" class="text-2xl font-bold"></h2>
+            <p id="status-msg" class="text-gray-400">Your Hyper-realm nodes are now active.</p>
+            <div id="app-grid" class="grid grid-cols-2 gap-3 mt-6">
+                <div class="p-3 bg-white/5 rounded-xl border border-white/5 text-[10px] text-blue-300 tracking-tighter">HYPER TRANSIT</div>
+                <div class="p-3 bg-white/5 rounded-xl border border-white/5 text-[10px] text-blue-300 tracking-tighter">HYPER FUEL</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let hyperToken = "";
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientId = urlParams.get('client_id') || '';
+        const redirectUri = urlParams.get('redirect_uri') || '';
+
+        function handleGoogleLogin(response) {
+            fetch(`http://localhost:8080/auth/google?client_id=${clientId}&redirect_uri=${redirectUri}`, {
+                method: 'POST',
+                headers: { 'X-Google-Token': response.credential }
+            })
+            .then(res => res.json())
+            .then(data => {
+                hyperToken = data.token;
+                localStorage.setItem('hyper_id_token', hyperToken);
+
+                if (data.status === "pending_onboarding") {
+                    toggleSection('onboarding-section');
+                    document.getElementById('sub-text').innerText = "Identity Pending Setup";
+                } else if (data.redirect_url) {
+                    performRedirect(data.redirect_url);
+                } else {
+                    showDashboard("Welcome Back, Commander");
+                }
+            });
+        }
+
+        function submitOnboarding() {
+            const username = document.getElementById('username').value;
+            if (!/^[a-zA-Z0-9._-]+$/.test(username) || username.length < 3) {
+                document.getElementById('val-error').innerText = "Invalid format (3-30 chars, ._- allowed)";
+                return;
+            }
+
+            fetch('http://localhost:8080/auth/onboarding', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + hyperToken
+                },
+                body: JSON.stringify({
+                    username: username,
+                    first_name: document.getElementById('first_name').value,
+                    last_name: document.getElementById('last_name').value,
+                    nickname: document.getElementById('nickname').value
+                })
+            })
+            .then(res => {
+                if (res.status === 409) throw new Error("Username already claimed");
+                if (!res.ok) throw new Error("Init failed");
+                return res.json();
+            })
+            .then(data => {
+                // UPDATE: Onboarding ke baad naya Active Token save karo
+                hyperToken = data.token;
+                localStorage.setItem('hyper_id_token', data.token);
+
+                if (clientId && redirectUri) {
+                    // Redirect URL manually build karo using new token
+                    const finalJump = `${redirectUri}?token=${data.token}&status=active`;
+                    performRedirect(finalJump);
+                } else {
+                    showDashboard("Access Granted: " + username);
+                }
+            })
+            .catch(err => document.getElementById('val-error').innerText = err.message);
+        }
+
+        function performRedirect(url) {
+            toggleSection('dashboard');
+            document.getElementById('welcome-msg').innerText = "Authenticating...";
+            document.getElementById('status-msg').innerText = "Establishing secure link to external node...";
+            document.getElementById('sub-text').innerText = "Handshaking...";
+            document.getElementById('app-grid').classList.add('opacity-20');
+            
+            // Artificial delay for premium feel
+            setTimeout(() => { window.location.href = url; }, 1500);
+        }
+
+        function toggleSection(id) {
+            ['login-section', 'onboarding-section', 'dashboard'].forEach(s => {
+                document.getElementById(s).classList.add('hidden');
+            });
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function showDashboard(msg) {
+            toggleSection('dashboard');
+            document.getElementById('welcome-msg').innerText = msg;
+            document.getElementById('status-msg').innerText = "Your Hyper-realm nodes are now active.";
+            document.getElementById('sub-text').innerText = "Core Systems Online";
+            document.getElementById('app-grid').classList.remove('opacity-20');
+        }
+    </script>
+</body>
+</html>

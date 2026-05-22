@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # 1. Auth Service (Go) - The Identity Provider
+  hyper-id:
+    build:
+      context: ./services/hyper-id
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      hyper-db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=hyper-db
+      - DB_PORT=5432
+      - DB_USER=abhi
+      - DB_PASSWORD=Abhi@5511
+      - DB_NAME=Hyper-ID
+      - GOOGLE_CLIENT_ID=306788201596-phllg7davd9ib2vkm1adrqrrv8r6ogoi.apps.googleusercontent.com
+      - KAFKA_BROKER=kafka:9092 # 👈 YEH RAHI ASLI FIX! (Docker network mein Kafka ko dhoondhne ke liye)
+    volumes:
+      - ./services/hyper-id/certs:/app/certs
+    networks:
+      - hyper-realm-net
+
+  # 2. Profile & Social Service (Go) - THE NEW HUB
+  hyper-hub:
+    build:
+      context: ./services/hyper-hub
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      hyper-db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=hyper-db
+      - DB_PORT=5432
+      - DB_USER=abhi
+      - DB_PASSWORD=Abhi@5511
+      - DB_NAME=Hyper-ID
+      - JWT_PUBLIC_KEY_PATH=/app/certs/public.pem # RSA Verification ke liye
+    volumes:
+      - ./services/hyper-id/certs:/app/certs:ro # Read-only access to RSA keys
+    networks:
+      - hyper-realm-net
+
+  # 3. Storage API (Python)
+  storage-api:
+    build:
+      context: ./services/storage-api
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - hyper-realm-net
+
+  # 4. SMS Service (FastAPI + Kafka)
+  sms-service:
+    build:
+      context: ./services/sms-service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_SERVER=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./services/hyper-id/certs:/app/certs:ro
+    networks:
+      - hyper-realm-net
+
+  # 5. Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - hyper-realm-net
+
+  # 6. Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - hyper-realm-net
+
+  # 7. Database
+  hyper-db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=abhi
+      - POSTGRES_PASSWORD=Abhi@5511
+      - POSTGRES_DB=Hyper-ID
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U abhi -d Hyper-ID"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - hyper-id_pgdata:/var/lib/postgresql/data
+    networks:
+      - hyper-realm-net
+
+  # 8. Flash Search Engine (Speed & Location)
+  typesense:
+    image: typesense/typesense:26.0
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesense_data:/data
+    command: '--data-dir /data --api-key=hyper_flash_key_5511 --enable-cors=true'
+    networks:
+      - hyper-realm-net
+
+  # 9. Deep Search Engine (AI & Semantic Intent)
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333" # REST API
+      - "6334:6334" # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - hyper-realm-net
+
+  # 10. Hyper Search Engine Core (Go)
+  hyper-search:
+    build:
+      context: ./services/hyper-search
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - KAFKA_BROKER=kafka:9092         # Docker network ke andar seedha Kafka hit
+      - TYPESENSE_URL=http://typesense:8108 # Internal Typesense IP
+    depends_on:
+      kafka:
+        condition: service_healthy
+      typesense:
+        condition: service_started
+    networks:
+      - hyper-realm-net
+
+networks:
+  hyper-realm-net:
+    driver: bridge
+
+volumes:
+  hyper-id_pgdata:
+  typesense_data:  
+  qdrant_data:

@@ -1,0 +1,39 @@
+/* app/globals.css */
+@import "tailwindcss";
+/* ... baki imports ... */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-border: var(--border);
+  --color-card: var(--card);
+}
+
+/* LIGHT MODE: Premium Paper Vibe */
+:root {
+  --background: #f8fafc;        /* Soft White */
+  --foreground: #0a0a0a;        /* Deep Slate (Kaala text) */
+  --primary: #10be00;           /* Forest Green */
+  --card: #ffffff;              /* Pure White */
+  --border: rgba(0, 0, 0, 0.08);
+}
+
+/* DARK MODE: Pitch Black Vibe */
+.dark {
+  --background: #000000;        /* Pure Black */
+  --foreground: #f8fafc;        /* Ice White (Safed text) */
+  --primary: #23f107;           /* Electric Lime */
+  --card: #0a0a0a;              /* Near Black */
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+@layer base {
+  * {
+    /* Saare elements ko variable aware bana do */
+    @apply border-border transition-colors duration-300;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

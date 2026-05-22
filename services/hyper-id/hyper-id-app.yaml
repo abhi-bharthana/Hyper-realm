@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hyper-id-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: id-app
+  template:
+    metadata:
+      labels:
+        app: id-app
+    spec:
+      containers:
+      - name: hyper-id
+        image: hyper-id:v1
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "hyper-id-db-service"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom: { secretKeyRef: { name: hyper-id-db-secrets, key: DB_USER } }
+        - name: DB_PASSWORD
+          valueFrom: { secretKeyRef: { name: hyper-id-db-secrets, key: DB_PASSWORD } }
+        - name: DB_NAME
+          valueFrom: { secretKeyRef: { name: hyper-id-db-secrets, key: DB_NAME } }
+        - name: GOOGLE_CLIENT_ID
+          value: "306788201596-phllg7davd9ib2vkm1adrqrrv8r6ogoi.apps.googleusercontent.com" #[cite: 1]
+        - name: JWT_PRIVATE_KEY_PATH
+          value: "/app/certs/private.pem" #[cite: 1]
+        - name: JWT_PUBLIC_KEY_PATH
+          value: "/app/certs/public.pem" #[cite: 1]
+        volumeMounts:
+        - name: certs-vol
+          mountPath: "/app/certs"
+          readOnly: true
+      volumes:
+      - name: certs-vol
+        secret:
+          secretName: hyper-id-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hyper-id-service
+spec:
+  type: NodePort
+  selector:
+    app: id-app
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30085

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Hyper Transit - Callback</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen">
+    <div class="p-8 bg-slate-800 rounded-2xl shadow-2xl border border-blue-500/30 text-center">
+        <h1 class="text-2xl font-bold text-blue-400 mb-4">Hyper Transit Node</h1>
+        <div id="loader" class="animate-pulse text-gray-400">Verifying Hyper ID Token...</div>
+        
+        <div id="success" class="hidden">
+            <p class="text-green-400 font-mono mb-4">Auth Success!</p>
+            <div class="bg-black/50 p-4 rounded text-xs text-left overflow-auto max-w-xs mb-4">
+                <code id="token-display"></code>
+            </div>
+            <button onclick="window.location.href='/'" class="bg-blue-600 px-6 py-2 rounded-lg">Go to Transit Dashboard</button>
+        </div>
+    </div>
+
+    <script>
+        // URL se token nikalne ka logic
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        if (token) {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('success').classList.remove('hidden');
+            document.getElementById('token-display').innerText = token;
+            
+            // Yahan Transit app apna logic likhega (e.g., save to localStorage)
+            localStorage.setItem('transit_auth_token', token);
+            console.log("Hyper ID Verified for Transit!");
+        } else {
+            document.getElementById('loader').innerText = "Auth Failed: No token received.";
+            document.getElementById('loader').classList.add('text-red-500');
+        }
+    </script>
+</body>
+</html>

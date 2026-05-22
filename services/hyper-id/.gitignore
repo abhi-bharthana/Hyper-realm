@@ -1,0 +1,23 @@
+
+
+# Binaries
+bin/
+main
+hyper-id
+
+# Certificates (NEVER PUSH THESE)
+certs/*.pem
+cmd/server/certs/*.pem
+
+# Database Data
+pgdata/
+
+# Environment variables
+.env
+
+# Dependencies
+vendor/
+
+# OS generated files
+.DS_Store
+.thumbs.db
