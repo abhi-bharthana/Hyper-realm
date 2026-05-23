@@ -9,6 +9,7 @@ import os
 # --- Configuration ---
 KAFKA_SERVER = os.getenv("KAFKA_SERVER", "kafka:9092")
 KAFKA_TOPIC = "chat-messages"
+USER_EVENTS_TOPIC = "user-events" # 👈 Naya topic add kiya
 PUBLIC_KEY_PATH = "/app/certs/public_key.pem"
 ALGORITHM = "RS256"
 
@@ -24,14 +25,13 @@ except FileNotFoundError:
 def verify_hyper_token(token: str):
     """Go (Hyper-ID) ke token ko RS256 se verify karta hai."""
     try:
-        # Issuer 'hyper-id' check karega aur RSA Public Key se signature verify karega
         payload = jwt.decode(
             token, 
             RSA_PUBLIC_KEY, 
             algorithms=[ALGORITHM], 
             issuer="hyper-id"
         )
-        return payload  # Ismein 'hid', 'username', aur 'status' milega
+        return payload  
     except JWTError as e:
         print(f"⚠️ JWT Verification Failed: {e}")
         return None
@@ -55,13 +55,13 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- Kafka Consumer ---
+# --- Kafka Consumer 1: Chat Messages ---
 async def consume_messages():
     consumer = AIOKafkaConsumer(
         KAFKA_TOPIC,
         bootstrap_servers=KAFKA_SERVER,
-        group_id="sms-group",
-        enable_auto_commit=False,  # 👈 1. Auto-commit OFF kar diya
+        group_id="chat-group",
+        enable_auto_commit=False,  
         auto_offset_reset="earliest"
     )
     await consumer.start()
@@ -77,31 +77,47 @@ async def consume_messages():
                     "timestamp": data.get('timestamp') 
                 })
 
-                # 2. Check agar user IS current pod pe active hai
                 if receiver in manager.active_connections:
                     await manager.send_personal_message(formatted_msg, receiver)
-                    
-                    # 3. Message successfully deliver hone ke BAAD hi commit karo
                     await consumer.commit()
-                    # print(f"✅ Delivered & Committed for {receiver}")
-                
                 else:
-                    # 4. User offline hai, YA kisi dusre K8s Pod pe connected hai
                     print(f"⚠️ User {receiver} not on this node. Parking message...")
-                    
-                    # TERA NEXT LOGIC YAHAN AAYEGA:
-                    # Chuki tera Redis already setup hai, yahan message ko drop karne ke 
-                    # bajaye Redis List (Offline Queue) mein push kar de.
-                    # Example: await redis_client.rpush(f"pending_msgs:{receiver}", formatted_msg)
-                    
-                    # Queue mein safe hone ke baad hi Kafka ko commit signal de taaki partition block na ho
+                    # Offline logic
                     await consumer.commit()
 
             except Exception as e:
                 print(f"❌ Processing Error: {e}")
-                # 5. ERROR AAYA TOH COMMIT MAT KARO!
-                # Isse Kafka next poll mein ye message dubara retry karega
+    finally:
+        await consumer.stop()
+
+# --- Kafka Consumer 2: User System Events (NAYA ADD KIYA) ---
+async def consume_user_events():
+    consumer = AIOKafkaConsumer(
+        USER_EVENTS_TOPIC,
+        bootstrap_servers=KAFKA_SERVER,
+        group_id="sms-system-group", # Alag group ID taaki conflict na ho
+        auto_offset_reset="earliest"
+    )
+    await consumer.start()
+    try:
+        async for msg in consumer:
+            try:
+                # Key se pata chalega event konsa hai
+                event_type = msg.key.decode("utf-8") if msg.key else "UNKNOWN"
+                event_data = json.loads(msg.value.decode("utf-8"))
                 
+                if event_type == "PROFILE_CREATED":
+                    hid = event_data.get("hid")
+                    nickname = event_data.get("nickname")
+                    # Yahan SMS bhejne ka code trigger hoga!
+                    print(f"🎉 [SMS SERVICE] NEW USER ALERT: Sending Welcome SMS to Commander {nickname} (HID: {hid})!")
+                
+                elif event_type == "PROFILE_UPDATED":
+                    hid = event_data.get("hid")
+                    print(f"🔄 [SMS SERVICE] Profile updated for HID: {hid}. Notifying via SMS...")
+                    
+            except Exception as e:
+                print(f"❌ Event Processing Error: {e}")
     finally:
         await consumer.stop()
 
@@ -111,12 +127,17 @@ async def lifespan(app: FastAPI):
     # Kafka Producer start
     app.state.producer = AIOKafkaProducer(bootstrap_servers=KAFKA_SERVER)
     await app.state.producer.start()
-    # Consumer task in background
-    consumer_task = asyncio.create_task(consume_messages())
+    
+    # Dono consumers ko background me start karo
+    chat_task = asyncio.create_task(consume_messages())
+    events_task = asyncio.create_task(consume_user_events()) # 👈 Naya task start
+    
     yield
+    
     # Cleanup
     await app.state.producer.stop()
-    consumer_task.cancel()
+    chat_task.cancel()
+    events_task.cancel()
 
 app = FastAPI(lifespan=lifespan)
 
@@ -125,24 +146,20 @@ app = FastAPI(lifespan=lifespan)
 async def websocket_endpoint(
     websocket: WebSocket, 
     user_id: str, 
-    token: str = Query(None) # Token URL query se aayega: ?token=...
+    token: str = Query(None)
 ):
-    # 1. Check karo token hai ya nahi
     if not token:
         print(f"🚫 Connection rejected: No token for user {user_id}")
-        await websocket.close(code=1008) # Policy Violation
+        await websocket.close(code=1008) 
         return
 
-    # 2. RSA Verification
     claims = verify_hyper_token(token)
     
-    # 3. Validation: Token sahi hona chahiye aur 'hid' URL ke 'user_id' se match karna chahiye
     if not claims or claims.get("hid") != user_id:
         print(f"🚫 Connection rejected: Invalid token for user {user_id}")
         await websocket.close(code=1008)
         return
 
-    # 4. Auth successful, connect user
     await manager.connect(user_id, websocket)
     print(f"✅ User {user_id} ({claims.get('username')}) connected successfully.")
 
@@ -151,7 +168,6 @@ async def websocket_endpoint(
             data = await websocket.receive_text()
             msg_json = json.loads(data)
             
-            # Kafka ko data produce karna
             message_to_kafka = {
                 "sender": user_id,
                 "receiver": msg_json.get("receiver"),

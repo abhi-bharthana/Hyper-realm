@@ -24,11 +24,15 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		// 1. RSA Public Key Load karo (Jo humne abhi ls karke dekhi)
-		keyPath := "/app/certs/public.pem"
+		// 1. RSA Public Key Load karo (Environment var ya fallback correct naam ke sath)
+		keyPath := os.Getenv("JWT_PUBLIC_KEY_PATH")
+		if keyPath == "" {
+			keyPath = "/app/certs/public_key.pem" // 👈 YAHAN FIX KIYA HAI
+		}
+
 		verifyBytes, err := os.ReadFile(keyPath)
 		if err != nil {
-			fmt.Printf("❌ Hub: Error reading public key: %v\n", err)
+			fmt.Printf("❌ Hub: Error reading public key at %s: %v\n", keyPath, err)
 			http.Error(w, "Auth Config Error", http.StatusInternalServerError)
 			return
 		}
@@ -65,6 +69,9 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 			}
 			ctx := context.WithValue(r.Context(), UserHIDKey, hid)
 			next.ServeHTTP(w, r.WithContext(ctx))
+		} else {
+			http.Error(w, "Unauthorised: Invalid Claims", http.StatusUnauthorized)
+			return
 		}
 	}
 }

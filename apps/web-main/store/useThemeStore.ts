@@ -39,7 +39,7 @@ export const useThemeStore = create<ThemeState>()(
 
         const current = get();
         try {
-          await fetch("http://localhost:8080/api/settings", {
+          await fetch("http://localhost:8081/api/v1/settings", {
             method: "POST",
             headers: { 
               "Authorization": `Bearer ${token}`, 
@@ -91,7 +91,7 @@ export const useThemeStore = create<ThemeState>()(
         if (!token) return;
 
         try {
-          const res = await fetch("http://localhost:8080/api/settings", {
+          const res = await fetch("http://localhost:8081/api/v1/settings", {
             headers: { "Authorization": `Bearer ${token}` }
           });
           if (res.ok) {

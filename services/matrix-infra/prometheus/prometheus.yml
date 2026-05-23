@@ -1,7 +1,23 @@
 global:
   scrape_interval: 15s
 
+rule_files:
+  - "alert.rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+
+  - job_name: 'hyper-hub'
+    static_configs:
+      - targets: ['hyper-hub:8081']
+
+  - job_name: 'hyper-search'
+    static_configs:
+      - targets: ['hyper-search:8082']

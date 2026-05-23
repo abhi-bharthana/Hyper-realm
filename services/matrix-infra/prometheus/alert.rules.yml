@@ -1,0 +1,21 @@
+groups:
+  - name: HyperRealmAlerts
+    rules:
+      # Alert agar koi service down ho jaye
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down!"
+          description: "Instance {{ $labels.instance }} has been down for more than 1 minute."
+
+      # Alert agar CPU load 80% se upar ho
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"

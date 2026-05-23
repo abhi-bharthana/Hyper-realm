@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	"hyper-id/internal/models"
+	"hyper-hub/internal/models"
 )
 
 // GetSettings: User ki saved settings load karega

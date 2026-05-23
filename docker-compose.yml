@@ -1,5 +1,5 @@
 services:
-  # 1. Auth Service (Go) - The Identity Provider
+  # 1. Auth Service (Go)
   hyper-id:
     build:
       context: ./services/hyper-id
@@ -22,7 +22,7 @@ services:
     networks:
       - hyper-realm-net
 
-  # 2. Profile & Social Service (Go) - THE NEW HUB
+  # 2. Profile & Social Service (Go)
   hyper-hub:
     build:
       context: ./services/hyper-hub
@@ -38,7 +38,8 @@ services:
       - DB_USER=abhi
       - DB_PASSWORD=Abhi@5511
       - DB_NAME=Hyper-ID
-      - JWT_PUBLIC_KEY_PATH=/app/certs/public.pem
+      - KAFKA_BROKER=kafka:9092
+      - JWT_PUBLIC_KEY_PATH=/app/certs/public_key.pem
     volumes:
       - ./services/hyper-id/certs:/app/certs:ro
     networks:
@@ -66,7 +67,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - KAFKA_SERVER=kafka:9092
-      - JWT_PUBLIC_KEY_PATH=/app/certs/public.pem
+      - JWT_PUBLIC_KEY_PATH=/app/certs/public_key.pem
     depends_on:
       kafka:
         condition: service_healthy
@@ -81,7 +82,7 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-      KAFKA_HEAP_OPTS: "-Xmx128M -Xms128M" # 👈 YEH ADD KIYA HAI (RAM Limit)
+      KAFKA_HEAP_OPTS: "-Xmx128M -Xms128M"
     networks:
       - hyper-realm-net
 
@@ -98,11 +99,12 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M" # 👈 YEH ADD KIYA HAI (RAM Limit)
+      KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
     networks:
       - hyper-realm-net
 
@@ -139,10 +141,11 @@ services:
   # 9. Deep Search Engine (AI & Semantic Intent)
   qdrant:
     image: qdrant/qdrant:latest
-    mem_limit: 512m # 👈 YEH ADD KIYA HAI (AI Engine ko control mein rakhne ke liye)
+    profiles: ["dev-extra"]
+    mem_limit: 512m
     ports:
-      - "6333:6333" # REST API
-      - "6334:6334" # gRPC API
+      - "6333:6333"
+      - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
@@ -166,9 +169,10 @@ services:
     networks:
       - hyper-realm-net
 
-  # 11. Prometheus (Metrics Time-Series DB)
+  # 11. Prometheus (Metrics)
   prometheus:
     image: prom/prometheus:latest
+    profiles: ["dev-extra"]
     ports:
       - "9090:9090"
     volumes:
@@ -177,13 +181,14 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=1d' # 👈 YEH ADD KIYA HAI (Data retention limit)
+      - '--storage.tsdb.retention.time=1d'
     networks:
       - hyper-realm-net
 
-  # 12. Grafana (The Visual Control Room)
+  # 12. Grafana (Visuals)
   grafana:
     image: grafana/grafana:latest
+    profiles: ["dev-extra"]
     ports:
       - "3005:3000"
     environment:
@@ -193,6 +198,17 @@ services:
       - prometheus
     volumes:
       - grafana_data:/var/lib/grafana
+    networks:
+      - hyper-realm-net
+
+  # 13. Alertmanager (The Watchdog)
+  alertmanager:
+    image: prom/alertmanager:latest
+    profiles: ["dev-extra"]
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./services/matrix-infra/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
     networks:
       - hyper-realm-net
 

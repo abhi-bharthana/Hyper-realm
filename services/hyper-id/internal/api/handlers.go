@@ -40,6 +40,7 @@ func HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	// 4. Database mein User check karo ya create karo
 	user, err := db.FindOrCreateUser(userInfo.Sub, userInfo.Email)
 	if err != nil {
+		fmt.Printf("❌ ASLI DB ERROR: %v\n", err) // 👈 YEH NAYI LINE ADD KI HAI HUMNE!
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
