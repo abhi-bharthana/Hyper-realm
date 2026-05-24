@@ -25,24 +25,21 @@ export function PreviewModal({ file, codeContent, loadingCode, onClose, gateway,
   const ext = file.file_name.split('.').pop()?.toLowerCase() || "";
   const fileUrl = `${gateway}/${file.object_name}`;
 
-  // 🎯 FIXED: Direct Full View Preview standard without forcing immediate download rejection loops.
-  // This utilizes native browser viewport capabilities for clean rendering over direct URL routing.
   const handleFullViewportView = () => {
     const previewUrl = `${gateway}/${file.object_name}`;
     const newWindow = window.open();
     if (newWindow) {
-      // Disconnecting the window backreference standard prevents cross-origin data leakage crash risk
       newWindow.opener = null; 
       newWindow.location.href = previewUrl;
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 md:p-8">
+    // 🎯 FIXED: z-[999] high stack visibility frame completely detached from relative flex columns!
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4 md:p-8">
       <div className="w-full max-w-5xl bg-black border border-white/10 rounded-[2.5rem] flex flex-col h-full max-h-[85vh] overflow-hidden shadow-2xl relative">
         
         {/* Header Block Section */}
- 
         <div className="w-full p-5 border-b border-white/5 flex justify-between items-center bg-zinc-950/80 backdrop-blur-md">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="p-2 bg-white/5 border border-white/5 rounded-lg">
@@ -55,7 +52,6 @@ export function PreviewModal({ file, codeContent, loadingCode, onClose, gateway,
           </div>
 
           <div className="flex items-center gap-2">
-            {}
             <button 
               onClick={handleFullViewportView}
               className="p-2 hover:bg-white/5 rounded-xl text-zinc-400 hover:text-white transition"
@@ -79,7 +75,14 @@ export function PreviewModal({ file, codeContent, loadingCode, onClose, gateway,
               return <img src={fileUrl} alt={file.file_name} className="max-w-full max-h-[60vh] object-contain rounded-2xl border border-white/5 shadow-lg shadow-black/50" />;
             }
             if (["mp4", "webm", "mkv", "mov", "ogv"].includes(ext)) {
-              return <video src={fileUrl} controls autoPlay className="w-full max-w-3xl max-h-[60vh] rounded-2xl bg-black border border-white/5 shadow-2xl" />;
+              return (
+                <video 
+                  src={fileUrl} 
+                  controls 
+                  autoPlay
+                  className="w-full max-w-3xl max-h-[55vh] rounded-2xl bg-black border border-white/5 shadow-2xl"
+                />
+              );
             }
             if (["mp3", "wav"].includes(ext)) {
               return (
@@ -103,7 +106,7 @@ export function PreviewModal({ file, codeContent, loadingCode, onClose, gateway,
             return (
               <div className="text-center flex flex-col items-center gap-3 max-w-xs p-6 border border-white/5 bg-white/[0.01] rounded-3xl">
                 <File className="w-6 h-6 opacity-30 text-white" />
-                <p className="text-[10px] font-mono opacity-40 uppercase tracking-widest text-zinc-400">Inline preview allocation unavailable for this payload extension.</p>
+                <p className="text-[10px] font-mono opacity-40 uppercase tracking-widest text-zinc-400">Inline preview allocation unavailable.</p>
                 <a href={fileUrl} download={file.file_name} className="px-4 py-2 bg-white text-black font-black text-[10px] font-mono rounded-xl mt-2 hover:scale-105 transition">Download Node</a>
               </div>
             );

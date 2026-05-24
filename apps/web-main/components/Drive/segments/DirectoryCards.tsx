@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Folder } from "lucide-react";
 
 interface StorageFolder {
@@ -15,7 +16,7 @@ interface DirectoryCardsProps {
   isLight: boolean;
 }
 
-export function DirectoryCards({ directories, onNavigate, primaryColor, isLight }: DirectoryCardsProps) {
+export const DirectoryCards = React.memo(function DirectoryCards({ directories, onNavigate, primaryColor, isLight }: DirectoryCardsProps) {
   if (directories.length === 0) return null;
 
   return (
@@ -24,7 +25,7 @@ export function DirectoryCards({ directories, onNavigate, primaryColor, isLight 
         <div 
           key={i} 
           onClick={() => onNavigate(dir.name)} 
-          className={`p-4 border rounded-[1.8rem] transition-all duration-200 cursor-pointer group flex flex-col gap-3 ${
+          className={`p-4 border rounded-[1.8rem] transition-all duration-200 cursor-pointer group flex flex-col gap-3 transform-gpu active:scale-[0.98] ${
             isLight ? 'bg-slate-50/50 border-slate-200/60 hover:bg-slate-100 text-slate-800' : 'bg-white/[0.01] border-white/5 hover:bg-white/[0.03] text-white'
           }`}
         >
@@ -39,4 +40,4 @@ export function DirectoryCards({ directories, onNavigate, primaryColor, isLight 
       ))}
     </div>
   );
-}
+}, (prev, next) => prev.directories.length === next.directories.length && prev.isLight === next.isLight);
