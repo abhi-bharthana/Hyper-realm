@@ -23,12 +23,18 @@ func init() {
 	prometheus.MustRegister(httpRequestsTotal)
 }
 
-// 🛡️ Global CORS Middleware (Handling OPTIONS preflight properly)
+// 🛡️ Global CORS Middleware
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, X-User-ID")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == http.MethodOptions {
@@ -49,6 +55,7 @@ func withMetrics(next http.Handler) http.Handler {
 func main() {
 	log.Println("🚀 Initializing Hyper Hub...")
 
+	// Initialize Services
 	db.InitDB()
 	events.InitKafkaProducer()
 
@@ -57,15 +64,27 @@ func main() {
 	// Metrics (Unprotected)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// 🚀 API Routes (Wrapped ONLY with Auth & Metrics)
-	// CORS middleware ab poore 'mux' ko wrap karega neeche
-	mux.Handle("/api/v1/profile", withMetrics(api.RequireAuth(api.GetProfileHandler)))
-	mux.Handle("/api/v1/profile/update", withMetrics(api.RequireAuth(api.UpdateProfileHandler)))
-	mux.Handle("/api/v1/settings", withMetrics(api.RequireAuth(api.HandleSettings)))
+	// ✅ PROTECTED ROUTES (Require Auth)
+	mux.Handle("/api/v1/profile", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetProfileHandler))))
+	mux.Handle("/api/v1/profile/update", withMetrics(api.RequireAuth(http.HandlerFunc(api.UpdateProfileHandler))))
+	mux.Handle("/api/v1/settings", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleSettings))))
+
+	// 🔗 Network & Connection Routes (Protected) - YAHAN UPDATE KIYA HAI
+	mux.Handle("/api/v1/users/requests", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleGetPendingRequests))))
+	mux.Handle("/api/v1/users/requests/send", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleSendRequest))))
+	mux.Handle("/api/v1/users/friends", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleGetFriendsList))))
+	mux.Handle("/api/v1/users/requests/accept", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleAcceptRequest))))
+	mux.Handle("/api/v1/users/requests/decline", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleDeclineRequest))))
+
+	// Purana routes hata diye gaye hain ya uncomment kar sakte hain agar unki alag dependency hai
+	mux.Handle("/api/v1/friends", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetFriendsList))))
+	// mux.Handle("/api/v1/follow", withMetrics(api.RequireAuth(http.HandlerFunc(api.ToggleFollowHandler))))
+
+	// 🚀 PUBLIC ROUTE (View other profiles by HID)
+	mux.Handle("/api/v1/profile/view", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetOtherProfileHandler))))
+	mux.Handle("/api/v1/search", withMetrics(http.HandlerFunc(api.SearchUsersHandler)))
 
 	port := ":8081"
-
-	// 🛡️ Global CORS wrap kiya (Handler mein)
 	server := &http.Server{
 		Addr:    port,
 		Handler: corsMiddleware(mux),

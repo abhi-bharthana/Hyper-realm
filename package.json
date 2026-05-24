@@ -2,7 +2,7 @@
   "name": "hyper-realm-monorepo",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "npm@10.5.0", 
+  "packageManager": "npm@10.5.0",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -15,5 +15,9 @@
   },
   "devDependencies": {
     "turbo": "latest"
+  },
+  "dependencies": {
+    "framer-motion": "^12.40.0",
+    "zustand": "^5.0.13"
   }
 }

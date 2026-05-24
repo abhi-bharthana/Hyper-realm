@@ -3,8 +3,10 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -26,11 +28,10 @@ func InitKafkaProducer() {
 	log.Println("✅ Kafka Producer initialized for topic: user-events")
 }
 
-// PublishEvent sends a message to Kafka
+// PublishEvent sends a message to Kafka with a 2-second timeout
 func PublishEvent(eventType string, data interface{}) error {
 	if writer == nil {
-		log.Println("❌ Kafka Writer is not initialized!")
-		return nil
+		return fmt.Errorf("❌ Kafka Writer is not initialized")
 	}
 
 	payload, err := json.Marshal(data)
@@ -38,12 +39,17 @@ func PublishEvent(eventType string, data interface{}) error {
 		return err
 	}
 
+	// 2 seconds ka context timeout set kar diya
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
 	msg := kafka.Message{
 		Key:   []byte(eventType),
 		Value: payload,
 	}
 
-	err = writer.WriteMessages(context.Background(), msg)
+	// Context ke sath writeMessage
+	err = writer.WriteMessages(ctx, msg)
 	if err != nil {
 		log.Printf("❌ Failed to publish event [%s]: %v", eventType, err)
 		return err

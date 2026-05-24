@@ -19,14 +19,25 @@ export function MagicPill() {
   const dragInfo = useRef({ startX: 0, startY: 0, initialX: 0, initialY: 0, isMoving: false });
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 🎯 CRITICAL SYSTEM THEME SYNC HOOK
+  // Jaise hi useThemeStore badlega, pure global HTML frame class map ko force overwrite karega
+  useEffect(() => {
+    if (theme === 'light-verdant') {
+      document.documentElement.classList.add('light');
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, [theme]);
+
   // --- BOUNDARY AUTO-ADJUST LOGIC ---
-  // Ye function check karta hai ki Pill screen ke bahar na jaye
   const getClampedPosition = (x: number, y: number, expanded: boolean) => {
     if (typeof window === 'undefined') return { x, y };
     
-    const width = expanded ? 300 : 56;  // Expanded vs Collapsed width
-    const height = expanded ? 80 : 56;  // Expanded vs Collapsed height
-    const margin = 24; // Screen ke edge se thoda gap (padding)
+    const width = expanded ? 300 : 56;  
+    const height = expanded ? 80 : 56;  
+    const margin = 24; 
 
     const maxX = window.innerWidth - width - margin;
     const maxY = window.innerHeight - height - margin;
@@ -37,13 +48,18 @@ export function MagicPill() {
     };
   };
 
-  // Mount hone par initial position bottom-right set karo
+  // Initial Position Deployment
   useEffect(() => {
-    setPosition(getClampedPosition(window.innerWidth, window.innerHeight, false));
-    setIsMounted(true);
+    if (typeof window !== 'undefined') {
+      // Screen edge margin constraints calculation
+      const initialX = window.innerWidth - 80;
+      const initialY = window.innerHeight - 100;
+      setPosition(getClampedPosition(initialX, initialY, false));
+      setIsMounted(true);
+    }
   }, []);
 
-  // Jaise hi Expand/Collapse ho, position auto-adjust karo taaki bahar na jaye
+  // Recalculate borders on window expand toggle state bounds
   useEffect(() => {
     if (isMounted) {
       setPosition((prev) => getClampedPosition(prev.x, prev.y, isExpanded));
@@ -54,10 +70,9 @@ export function MagicPill() {
 
   // --- INTERACTION LOGIC (Tap, Hold, Drag) ---
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Agar kisi button pe click kiya hai (jaise Play/Pause), toh drag trigger mat karo
     if ((e.target as HTMLElement).closest('button')) return;
-
     if (isExpanded) return; 
+    
     e.currentTarget.setPointerCapture(e.pointerId);
     
     dragInfo.current = {
@@ -68,7 +83,6 @@ export function MagicPill() {
       isMoving: false
     };
 
-    // 400ms tak daba ke rakha toh expand hoga
     timerRef.current = setTimeout(() => {
       if (!dragInfo.current.isMoving) {
         setIsExpanded(true);
@@ -82,10 +96,9 @@ export function MagicPill() {
     const moveX = e.clientX - dragInfo.current.startX;
     const moveY = e.clientY - dragInfo.current.startY;
     
-    // Agar user 3px se zyada hila, matlab wo drag kar raha hai, tap nahi
     if (Math.abs(moveX) > 3 || Math.abs(moveY) > 3) {
       dragInfo.current.isMoving = true;
-      setIsDragging(true); // Dragging on, CSS animation off for smooth follow
+      setIsDragging(true); 
       if (timerRef.current) clearTimeout(timerRef.current); 
       
       setPosition({
@@ -101,11 +114,10 @@ export function MagicPill() {
     }
     if (timerRef.current) clearTimeout(timerRef.current);
     
-    // YAHAN FIX KIYA HAI THEME TOGGLE: Agar drag nahi kiya aur expand nahi hai, toh Theme badlo!
+    // 🎯 FLOATING MAGIC PILL TAP EXECUTION: Theme Toggle Action Trigger!
     if (!dragInfo.current.isMoving && !isExpanded) {
       setTheme(theme === 'light-verdant' ? 'dark-green' : 'light-verdant');
     } else if (dragInfo.current.isMoving) {
-      // Drag khatam hone pe screen ke bahar ho toh andar kheencho
       setPosition((prev) => getClampedPosition(prev.x, prev.y, isExpanded));
     }
 
@@ -113,7 +125,6 @@ export function MagicPill() {
     dragInfo.current.isMoving = false;
   };
 
-  // --- AUDIO LOGIC ---
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (audioRef.current) {
@@ -137,8 +148,6 @@ export function MagicPill() {
           left: `${position.x}px`,
           top: `${position.y}px`,
           touchAction: "none",
-          // Drag karte time animation 'none' taaki cursor chipka rahe,
-          // Release karte hi '0.6s ease' jisse auto-adjust buttery smooth ho
           transition: isDragging ? 'none' : 'all 0.6s cubic-bezier(0.16, 1, 0.3, 1)' 
         }}
         className={`fixed z-[100] overflow-hidden shadow-2xl
@@ -155,7 +164,7 @@ export function MagicPill() {
         >
           <div className="relative">
             {isPlaying && <div className="absolute inset-0 bg-lime-400 rounded-full blur animate-ping opacity-30"></div>}
-            <Disc3 className={`w-6 h-6 ${isPlaying ? 'animate-spin-slow' : ''} ${isLight ? 'text-lime-400' : 'text-lime-400'}`} />
+            <Disc3 className={`w-6 h-6 ${isPlaying ? 'animate-spin-slow' : ''} text-lime-400`} />
           </div>
         </div>
 

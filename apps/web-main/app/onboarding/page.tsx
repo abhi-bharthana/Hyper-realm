@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Loader2, User, Fingerprint } from "lucide-react";
+import { Zap, Loader2, User, Fingerprint, AtSign } from "lucide-react";
 import { motion } from "framer-motion";
+import { api, API_URLS } from "@/lib/api"; 
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [token, setToken] = useState("");
 
   const [formData, setFormData] = useState({
     username: "",
@@ -18,13 +18,11 @@ export default function OnboardingPage() {
     nickname: "",
   });
 
-  // Page load hote hi local storage se token uthao
+  // 🛡️ Guard Engine: Only check for authentication token presence
   useEffect(() => {
     const savedToken = localStorage.getItem("hyper_id_token");
     if (!savedToken) {
-      router.push("/login"); // Token nahi hai toh wapas login pe fenko
-    } else {
-      setToken(savedToken);
+      router.push("/login");
     }
   }, [router]);
 
@@ -34,31 +32,33 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:8080/api/v1/auth/onboarding", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // 👈 YEH RAHI TERI MIDDLEWARE KI CHABI
-        },
-        body: JSON.stringify(formData),
-      });
+      // 🎯 CORE PAYLOAD ALIGNMENT: Go backend 'nickname' aur 'bio' accept karta hai.
+      // Operator Handle (username) ko hum 'nickname' field me aur casual fields ko 'bio' me contract kar rahe hain.
+      const payload = {
+        nickname: formData.username, 
+        bio: formData.nickname || `${formData.first_name} ${formData.last_name}`.trim() || "Active Operator in Hyper-Realm", 
+      };
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(errorText || "Failed to initialize operator profile.");
+      // Hyper-Hub par profile entry upsert (INSERT or UPDATE) karo
+      const data = await api.post(`${API_URLS.HUB}/profile/update`, payload);
+
+      if (data && data.token) {
+        localStorage.setItem("hyper_id_token", data.token);
       }
 
-      const data = await res.json();
+      // ⚡ STATE CACHE LOCK: Backend response ke baad parameters local storage me feed karo 
+      // taaki global navbar aur internal context updates me "GUEST" default text bypass ho sake.
+      localStorage.setItem("hyper_onboarded", "true");
+      localStorage.setItem("hyper_username", formData.username);
 
-      // Naya 'active' token mila! Purane wale ko overwrite karo
-      localStorage.setItem("hyper_id_token", data.token);
-
-      // Access Granted! Seedha matrix ke andar...
-      router.push("/dashboard");
+      console.log("Spacer ✅ Identity Established successfully!");
+      
+      // 🚀 STATE RE-INITIALIZATION: window.location use kiya taaki full app context components clear hokar fresh reload ho sakein.
+      window.location.href = "/dashboard";
     } catch (err: any) {
       console.error("Onboarding Error:", err);
-      setError(err.message);
-      setIsSubmitting(false);
+      setError(err.message || "Failed to initialize operator profile.");
+      setIsSubmitting(false); 
     }
   };
 
@@ -84,6 +84,7 @@ export default function OnboardingPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Username Field */}
           <div className="space-y-1">
             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-2">Operator Handle (Username) *</label>
             <div className="relative">
@@ -91,7 +92,8 @@ export default function OnboardingPage() {
               <input 
                 type="text" 
                 required
-                pattern="^[a-zA-Z0-9._-]+$"
+                pattern="[a-zA-Z0-9_.\-]+" 
+                title="Only letters, numbers, dots, underscores, and hyphens"
                 placeholder="e.g. Neo_01"
                 className="w-full bg-background/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 value={formData.username}
@@ -100,6 +102,7 @@ export default function OnboardingPage() {
             </div>
           </div>
 
+          {/* Name Fields */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-2">First Name</label>
@@ -121,6 +124,21 @@ export default function OnboardingPage() {
             </div>
           </div>
 
+          {/* Nickname Field */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-2">Nickname</label>
+            <div className="relative">
+              <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input 
+                type="text" 
+                placeholder="e.g. The Architect"
+                className="w-full bg-background/50 border border-border rounded-2xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                value={formData.nickname}
+                onChange={(e) => setFormData({...formData, nickname: e.target.value})}
+              />
+            </div>
+          </div>
+
           <button 
             type="submit" 
             disabled={isSubmitting}
@@ -135,7 +153,6 @@ export default function OnboardingPage() {
         </form>
       </motion.div>
       
-      {/* Background Matrix glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
     </div>
   );

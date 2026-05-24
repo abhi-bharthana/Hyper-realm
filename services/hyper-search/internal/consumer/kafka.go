@@ -44,25 +44,41 @@ func StartKafkaConsumer() {
 }
 
 func IndexUserToFlash(data []byte) {
-	// 1. JSON parse karo
-	var user map[string]interface{}
-	if err := json.Unmarshal(data, &user); err != nil {
+	var event map[string]interface{}
+	if err := json.Unmarshal(data, &event); err != nil {
 		log.Println("❌ Failed to parse Kafka event:", err)
 		return
 	}
 
-	// 2. Typesense ke hisaab se document prepare karo
-	document := map[string]interface{}{
-		"id":       fmt.Sprintf("%v", user["id"]), // ID hamesha string honi chahiye Typesense mein
-		"username": user["username"],
-		"role":     user["role"],
+	// 1. HID/ID map karo (Dono cases handle karo: 'hid' ya 'id')
+	userID := ""
+	if val, ok := event["hid"]; ok {
+		userID = fmt.Sprintf("%v", val)
+	} else if val, ok := event["id"]; ok {
+		userID = fmt.Sprintf("%v", val)
 	}
 
-	// 3. Typesense mein Insert/Update (Upsert) maaro
+	// 2. Role handling (Default to "User" agar missing hai)
+	role := "User"
+	if val, ok := event["role"]; ok {
+		role = fmt.Sprintf("%v", val)
+	}
+
+	// 3. Document structure prepare karo (Defensive Mapping)
+	document := map[string]interface{}{
+		"id":         userID,
+		"username":   event["username"],
+		"role":       role,
+		"first_name": event["first_name"], // Naye fields add kiye
+		"last_name":  event["last_name"],
+		"nickname":   event["nickname"],
+	}
+
+	// 4. Typesense Upsert
 	_, err := engine.FlashClient.Collection("users").Documents().Upsert(context.Background(), document)
 	if err != nil {
-		log.Println("❌ [Flash] Indexing Failed:", err)
+		log.Printf("❌ [Flash] Indexing Failed for ID %s: %v", userID, err)
 	} else {
-		log.Printf("⚡ [Flash] User '%v' successfully indexed in milliseconds!", user["username"])
+		log.Printf("⚡ [Flash] User '%v' (ID: %s) successfully indexed!", event["username"], userID)
 	}
 }

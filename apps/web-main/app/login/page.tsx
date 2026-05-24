@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 import { Zap, Loader2, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
+import { api, API_URLS } from "@/lib/api"; // <-- Naya centralized API client import kiya
 
 function LoginContent() {
   const router = useRouter();
@@ -17,24 +18,19 @@ function LoginContent() {
 
     try {
       // 1. Google raw credential token ko Hyper-ID (8080) ke saath exchange karo
-      const res = await fetch("http://localhost:8080/api/v1/auth/google", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "X-Google-Token": credentialResponse.credential 
-        },
-      });
-
-      if (!res.ok) {
-        // Agar fail hota hai toh backend ka exact error text console mein dikhega
-        const errorText = await res.text();
-        console.error("Backend Error Details:", errorText);
-        throw new Error("Invalid Neural Link Token from Identity Provider");
-      }
-
-      const data = await res.json();
+      // api.post khud fetch, error handling aur JSON parsing manage karega
+      const data = await api.post(
+        `${API_URLS.ID}/auth/google`, 
+        {}, // Body empty hai kyunki token header mein jaa raha hai
+        { 
+          headers: { 
+            "X-Google-Token": credentialResponse.credential 
+          } 
+        }
+      );
 
       // 2. Hyper-ID ka signed RSA JWT save karo
+      // Yeh save karna zaroori hai taaki api.ts aage ki requests mein isko use kar sake
       localStorage.setItem("hyper_id_token", data.token);
 
       // 3. SMART ROUTING: Backend status ke hisaab se redirect karo
@@ -46,6 +42,7 @@ function LoginContent() {
       
     } catch (err: any) {
       console.error("Auth Exchange Error:", err);
+      // api.ts backend se aaye error message ko direct throw karta hai
       setError(err.message || "Neural Link connection refused.");
       setIsSyncing(false);
     }

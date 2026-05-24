@@ -1,11 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { api, API_URLS } from '@/lib/api'; // Naya centralized API client import kiya
 
 interface ThemeState {
   theme: string;
   isMagicPillVisible: boolean;
   pillPosition: { x: number; y: number };
+  
+  // UI Panels State
   isSettingsOpen: boolean;
+  isDiscoverOpen: boolean; // <-- NAYA: Discover panel ka state
+  
   // Dashboard Component Visibility
   showClock: boolean;
   showNews: boolean;
@@ -13,7 +18,10 @@ interface ThemeState {
   setTheme: (t: string) => Promise<void>;
   setPillPosition: (pos: { x: number; y: number }) => void;
   toggleMagicPill: () => void;
+  
+  // Toggles
   toggleSettings: () => void;
+  toggleDiscover: () => void; // <-- NAYA: Discover panel toggle karne ka function
   
   // Dashboard Control Actions
   setShowClock: (val: boolean) => Promise<void>;
@@ -29,30 +37,22 @@ export const useThemeStore = create<ThemeState>()(
       isMagicPillVisible: true,
       pillPosition: { x: 20, y: 20 },
       isSettingsOpen: false,
+      isDiscoverOpen: false, // <-- NAYA: By default panel band rahega
       showClock: true,  // Default: On
       showNews: true,   // Default: On
 
       // Shared function to update cloud settings
       persistToCloud: async (updates: Partial<ThemeState>) => {
-        const token = localStorage.getItem("hyper_id_token");
-        if (!token) return;
-
         const current = get();
         try {
-          await fetch("http://localhost:8081/api/v1/settings", {
-            method: "POST",
-            headers: { 
-              "Authorization": `Bearer ${token}`, 
-              "Content-Type": "application/json" 
-            },
-            body: JSON.stringify({ 
-              theme: updates.theme ?? current.theme, 
-              isMagicPillVisible: updates.isMagicPillVisible ?? current.isMagicPillVisible, 
-              pillX: current.pillPosition.x, 
-              pillY: current.pillPosition.y,
-              showClock: updates.showClock ?? current.showClock,
-              showNews: updates.showNews ?? current.showNews
-            })
+          // Token aur Headers ab 'api' client khud inject karega
+          await api.post(`${API_URLS.HUB}/settings`, {
+            theme: updates.theme ?? current.theme, 
+            isMagicPillVisible: updates.isMagicPillVisible ?? current.isMagicPillVisible, 
+            pillX: current.pillPosition.x, 
+            pillY: current.pillPosition.y,
+            showClock: updates.showClock ?? current.showClock,
+            showNews: updates.showNews ?? current.showNews
           });
         } catch (err) {
           console.error("Cloud update failed", err);
@@ -86,24 +86,23 @@ export const useThemeStore = create<ThemeState>()(
         isSettingsOpen: !state.isSettingsOpen 
       })),
 
-      syncWithCloud: async () => {
-        const token = localStorage.getItem("hyper_id_token");
-        if (!token) return;
+      // <-- NAYA: Discover panel toggle logic
+      toggleDiscover: () => set((state) => ({ 
+        isDiscoverOpen: !state.isDiscoverOpen 
+      })),
 
+      syncWithCloud: async () => {
         try {
-          const res = await fetch("http://localhost:8081/api/v1/settings", {
-            headers: { "Authorization": `Bearer ${token}` }
+          // Direct api.get call lagai, localstorage fetch karne ki zaroorat nahi
+          const data = await api.get(`${API_URLS.HUB}/settings`);
+          
+          set({ 
+            theme: data.theme || 'dark-green', 
+            isMagicPillVisible: data.isMagicPillVisible ?? true, 
+            pillPosition: { x: data.pillX ?? 20, y: data.pillY ?? 20 },
+            showClock: data.showClock ?? true,
+            showNews: data.showNews ?? true
           });
-          if (res.ok) {
-            const data = await res.json();
-            set({ 
-              theme: data.theme || 'dark-green', 
-              isMagicPillVisible: data.isMagicPillVisible ?? true, 
-              pillPosition: { x: data.pillX ?? 20, y: data.pillY ?? 20 },
-              showClock: data.showClock ?? true,
-              showNews: data.showNews ?? true
-            });
-          }
         } catch (err) {
           console.error("Cloud sync failed", err);
         }
@@ -117,6 +116,8 @@ export const useThemeStore = create<ThemeState>()(
         pillPosition: state.pillPosition,
         showClock: state.showClock,
         showNews: state.showNews
+        // NOTE: isSettingsOpen aur isDiscoverOpen ko partialize mein nahi dala
+        // Taaki page refresh hone par panels hamesha close mode (default) se start ho.
       }),
     }
   )

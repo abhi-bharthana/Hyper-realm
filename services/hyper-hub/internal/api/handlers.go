@@ -10,8 +10,8 @@ import (
 	"net/http"
 )
 
+// 1. GetProfileHandler: Authenticated user ka apna profile
 func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
-	// Context se HID nikalna
 	val := r.Context().Value(UserHIDKey)
 	hid, ok := val.(string)
 	if !ok {
@@ -20,7 +20,6 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p models.UserProfile
-	// COALESCE zaroori hai kyunki Postgres ke nullable columns NULL hone par Go Scan ko break kar dete hain
 	query := `
         SELECT hid, nickname, COALESCE(bio, ''), COALESCE(avatar_url, ''), COALESCE(rank, 'Agent'), COALESCE(trust_score, 1.0) 
         FROM user_profiles 
@@ -32,7 +31,6 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// --- LAZY LOADING: Agar profile nahi hai toh naya banao ---
 			log.Printf("🆕 [Hyper-Hub] Creating new profile for HID: %s", hid)
 			defaultNickname := "New_Commander"
 			defaultBio := "Welcome to the Hyper-Realm. Set your bio."
@@ -48,14 +46,12 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// 🚀 KAFKA EVENT: Nayi profile banne par event fire karo
 			go events.PublishEvent("PROFILE_CREATED", map[string]interface{}{
 				"hid":      hid,
 				"nickname": defaultNickname,
 				"action":   "PROFILE_CREATED",
 			})
 
-			// Nayi profile return karo
 			p = models.UserProfile{
 				HID:        hid,
 				Nickname:   defaultNickname,
@@ -74,8 +70,8 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(p)
 }
 
+// 2. UpdateProfileHandler: Khud ka profile update/initialize karne ke liye
 func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
-	// HID nikalna
 	val := r.Context().Value(UserHIDKey)
 	hid, ok := val.(string)
 	if !ok {
@@ -83,7 +79,6 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// JSON body parse karna
 	var updateData struct {
 		Nickname string `json:"nickname"`
 		Bio      string `json:"bio"`
@@ -93,17 +88,21 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// DB Update logic
-	_, err := db.DB.Exec("UPDATE user_profiles SET nickname=$1, bio=$2 WHERE hid=$3",
-		updateData.Nickname, updateData.Bio, hid)
+	// 🎯 INTUITIVE UPSERT: Agar row nahi hai toh INSERT hogi, agar hai toh UPDATE hogi
+	query := `
+        INSERT INTO user_profiles (hid, nickname, bio, rank, trust_score) 
+        VALUES ($1, $2, $3, 'Agent', 1.0)
+        ON CONFLICT (hid) 
+        DO UPDATE SET nickname = EXCLUDED.nickname, bio = EXCLUDED.bio`
+
+	_, err := db.DB.Exec(query, hid, updateData.Nickname, updateData.Bio)
 
 	if err != nil {
-		log.Printf("❌ [Hyper-Hub] Profile Update Failed for HID %s: %v", hid, err)
+		log.Printf("❌ [Hyper-Hub] Profile Upsert Failed for HID %s: %v", hid, err)
 		http.Error(w, "Failed to update profile", http.StatusInternalServerError)
 		return
 	}
 
-	// 🚀 KAFKA EVENT: Profile update hone par event fire karo
 	go events.PublishEvent("PROFILE_UPDATED", map[string]interface{}{
 		"hid":      hid,
 		"nickname": updateData.Nickname,
@@ -111,8 +110,63 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		"action":   "PROFILE_UPDATED",
 	})
 
-	log.Printf("✅ [Hyper-Hub] Profile updated for HID: %s", hid)
+	go events.PublishEvent("USER_INDEXED", map[string]interface{}{
+		"id":       hid,
+		"username": updateData.Nickname,
+		"role":     "CITIZEN",
+	})
+
+	log.Printf("✅ [Hyper-Hub] Profile successfully established/updated via UPSERT for HID: %s", hid)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Profile Updated Successfully"})
+}
+
+// 4. SearchUsersHandler: Users ko nickname ya HID se dhoondhne ke liye
+func SearchUsersHandler(w http.ResponseWriter, r *http.Request) {
+	searchQuery := r.URL.Query().Get("q")
+
+	if searchQuery == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+		return
+	}
+
+	// 🔥 FIX: hid ko hid::TEXT mein cast kiya taaki Postgres ILIKE chala sake
+	query := `
+		SELECT hid, nickname, COALESCE(avatar_url, ''), COALESCE(rank, 'Agent')
+		FROM user_profiles 
+		WHERE nickname ILIKE $1 OR hid::TEXT ILIKE $1
+		LIMIT 10
+	`
+
+	rows, err := db.DB.Query(query, "%"+searchQuery+"%")
+	if err != nil {
+		log.Printf("❌ [Hyper-Hub] Search DB Error: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var hid, nickname, avatar, rank string
+		if err := rows.Scan(&hid, &nickname, &avatar, &rank); err != nil {
+			log.Printf("❌ [Hyper-Hub] Row scan error: %v", err)
+			continue
+		}
+		results = append(results, map[string]interface{}{
+			"hid":        hid,
+			"nickname":   nickname,
+			"avatar_url": avatar,
+			"rank":       rank,
+		})
+	}
+
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }

@@ -18,7 +18,7 @@ export function SocialPanel() {
     setLoading(true);
     try {
       const token = localStorage.getItem("hyper_id_token");
-      const res = await fetch(`http://localhost:8080/api/v1/users/search?q=${searchQuery}`, {
+      const res = await fetch(`http://localhost:8081/api/v1/users/search?q=${searchQuery}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) setUsers(await res.json());
@@ -33,7 +33,7 @@ export function SocialPanel() {
   const addFriend = async (userId: string) => {
     try {
       const token = localStorage.getItem("hyper_id_token");
-      const res = await fetch(`http://localhost:8080/api/v1/friends/request`, {
+      const res = await fetch(`http://localhost:8081/api/v1/friends/request`, {
         method: "POST",
         headers: { 
           "Authorization": `Bearer ${token}`,

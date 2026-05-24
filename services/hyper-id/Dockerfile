@@ -22,6 +22,9 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 # Copy the compiled binary from builder
 COPY --from=builder /app/main .
 
+# FIX: Binary ko execute permission do
+RUN chmod +x /app/main
+
 # Expose API port
 EXPOSE 8080
 

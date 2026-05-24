@@ -1,9 +1,14 @@
+version: '3.8'
+
 services:
-  # 1. Auth Service (Go)
+  # ==========================================
+  # 1. CORE IDENTITY & SECURITY LAYER (Go)
+  # ==========================================
   hyper-id:
     build:
       context: ./services/hyper-id
       dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-id-1
     ports:
       - "8080:8080"
     depends_on:
@@ -22,11 +27,14 @@ services:
     networks:
       - hyper-realm-net
 
-  # 2. Profile & Social Service (Go)
+  # ==========================================
+  # 2. PROFILE & SOCIAL INTERACTION EDGE (Go)
+  # ==========================================
   hyper-hub:
     build:
       context: ./services/hyper-hub
       dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-hub-1
     ports:
       - "8081:8081"
     depends_on:
@@ -45,40 +53,95 @@ services:
     networks:
       - hyper-realm-net
 
-  # 3. Storage API (Python)
+  # ==========================================
+  # 3. VOLATILE DATA STORAGE & PUB/SUB INTERFACE
+  # ==========================================
+  hyper-redis:
+    image: redis:alpine
+    container_name: hyper-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - hyper-realm-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M # 🛡️ OPTIMIZATION: Prevents RAM exhaustion during heavy stream queries
+
+  # ==========================================
+  # 4. EXABYTE SIMULATION OBJECT STORAGE (Ceph/S3 Proxy)
+  # ==========================================
+  hyper-storage-node:
+    image: minio/minio:latest
+    container_name: hyper-storage-node
+    ports:
+      - "7480:9000"      # Maps host port 7480 straight to storage container internal S3 API
+      - "9001:9001"      # Web Management UI Dashboard Console (Credentials same check standard)
+    environment:
+      - MINIO_ROOT_USER=7KF1I2CYE25G2R7HWCVL        
+      - MINIO_ROOT_PASSWORD=2BYAzXng14JMBfjB3ZCj6SoHlSJqqzDL8Ke5LnBE 
+    volumes:
+      - hyper_ceph_mock:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - hyper-realm-net
+
+  # ==========================================
+  # 5. STORAGE API BROKER GATEWAY (Go)
+  # ==========================================
   storage-api:
     build:
       context: ./services/storage-api
       dockerfile: Dockerfile
+    container_name: hyper-realm-storage-api-1
     ports:
       - "8001:8001"
     environment:
-      - PYTHONUNBUFFERED=1
+      - PORT=:8001
+      - REDIS_HOST=hyper-redis
+      - S3_ENDPOINT=hyper-storage-node:9000 # 🎯 Direct internal network mesh mapping
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} 
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} 
+    depends_on:
+      - hyper-redis
+      - hyper-storage-node 
     networks:
       - hyper-realm-net
 
-  # 4. SMS Service (FastAPI + Kafka)
+  # ==========================================
+  # 6. ASYNCHRONOUS TRANSACTION SYSTEM (Go)
+  # ==========================================
   sms-service:
     build:
       context: ./services/sms-service
       dockerfile: Dockerfile
+    container_name: hyper-realm-sms-service-1
     ports:
       - "8002:8002"
     environment:
-      - PYTHONUNBUFFERED=1
+      - PORT=:8002
+      - REDIS_URL=hyper-redis:6379
       - KAFKA_SERVER=kafka:9092
-      - JWT_PUBLIC_KEY_PATH=/app/certs/public_key.pem
+      - PUBLIC_KEY_PATH=/app/certs/public_key.pem
     depends_on:
       kafka:
         condition: service_healthy
+      hyper-redis:
+        condition: service_started
     volumes:
       - ./services/hyper-id/certs:/app/certs:ro
     networks:
       - hyper-realm-net
 
-  # 5. Zookeeper
+  # ==========================================
+  # 7. EVENT DRIVEN TELEMETRY (Zookeeper + Kafka Cluster)
+  # ==========================================
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
+    container_name: hyper-realm-zookeeper-1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -86,9 +149,9 @@ services:
     networks:
       - hyper-realm-net
 
-  # 6. Kafka
   kafka:
     image: confluentinc/cp-kafka:7.5.0
+    container_name: hyper-realm-kafka-1
     depends_on:
       - zookeeper
     healthcheck:
@@ -103,14 +166,18 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_HEAP_OPTS: "-Xmx256M -Xms256M"
     networks:
       - hyper-realm-net
 
-  # 7. Database
+  # ==========================================
+  # 8. PRIMARY STATE SYSTEM DATABASE (PostgreSQL)
+  # ==========================================
   hyper-db:
     image: postgres:15-alpine
+    container_name: hyper-realm-hyper-db-1
     ports:
       - "5432:5432"
     environment:
@@ -126,10 +193,17 @@ services:
       - hyper-id_pgdata:/var/lib/postgresql/data
     networks:
       - hyper-realm-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G # 🛡️ OPTIMIZATION: Prevents relational node from swallowing workstation RAM
 
-  # 8. Flash Search Engine (Speed & Location)
+  # ==========================================
+  # 9. ENGINE ENGINE COMPONENT SUB-SYSTEMS
+  # ==========================================
   typesense:
     image: typesense/typesense:26.0
+    container_name: hyper-realm-typesense-1
     ports:
       - "8108:8108"
     volumes:
@@ -138,9 +212,9 @@ services:
     networks:
       - hyper-realm-net
 
-  # 9. Deep Search Engine (AI & Semantic Intent)
   qdrant:
     image: qdrant/qdrant:latest
+    container_name: hyper-realm-qdrant-1
     profiles: ["dev-extra"]
     mem_limit: 512m
     ports:
@@ -151,11 +225,11 @@ services:
     networks:
       - hyper-realm-net
 
-  # 10. Hyper Search Engine Core (Go)
   hyper-search:
     build:
       context: ./services/hyper-search
       dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-search-1
     ports:
       - "8082:8082"
     environment:
@@ -169,9 +243,12 @@ services:
     networks:
       - hyper-realm-net
 
-  # 11. Prometheus (Metrics)
+  # ==========================================
+  # 10. MATRIX INFRASTRUCTURE WATCHDOGS (Telemetry Stack)
+  # ==========================================
   prometheus:
     image: prom/prometheus:latest
+    container_name: hyper-realm-prometheus-1
     profiles: ["dev-extra"]
     ports:
       - "9090:9090"
@@ -185,9 +262,9 @@ services:
     networks:
       - hyper-realm-net
 
-  # 12. Grafana (Visuals)
   grafana:
     image: grafana/grafana:latest
+    container_name: hyper-realm-grafana-1
     profiles: ["dev-extra"]
     ports:
       - "3005:3000"
@@ -201,9 +278,9 @@ services:
     networks:
       - hyper-realm-net
 
-  # 13. Alertmanager (The Watchdog)
   alertmanager:
     image: prom/alertmanager:latest
+    container_name: hyper-realm-alertmanager-1
     profiles: ["dev-extra"]
     ports:
       - "9093:9093"
@@ -212,6 +289,9 @@ services:
     networks:
       - hyper-realm-net
 
+# ==========================================
+# FILE DATA SHARD STORAGE MAPS 
+# ==========================================
 networks:
   hyper-realm-net:
     driver: bridge
@@ -222,3 +302,5 @@ volumes:
   qdrant_data:
   prometheus_data:
   grafana_data:
+  redis_data:
+  hyper_ceph_mock:

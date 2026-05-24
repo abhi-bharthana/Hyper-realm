@@ -1,4 +1,5 @@
 services:
+  # 1. Hot Cache & Pub/Sub
   hyper-redis:
     image: redis:alpine
     container_name: hyper-redis
@@ -8,6 +9,7 @@ services:
       - ./redis-data:/data
     command: redis-server --appendonly yes
 
+  # 2. Event Broker
   hyper-kafka:
     image: apache/kafka:3.7.0
     container_name: hyper-kafka
@@ -16,8 +18,9 @@ services:
     environment:
       - KAFKA_NODE_ID=1
       - KAFKA_PROCESS_ROLES=broker,controller
-      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # FIX: Changed localhost to hyper-kafka so other containers can connect
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://hyper-kafka:9092 
       - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
@@ -28,3 +31,55 @@ services:
       - KAFKA_NUM_PARTITIONS=3
     volumes:
       - ./kafka-data:/var/lib/kafka/data
+
+  # 3. 📦 NAYA: Local S3 Object Storage (MinIO)
+  hyper-minio:
+    image: minio/minio:latest
+    container_name: hyper-minio
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web UI
+    environment:
+      - MINIO_ROOT_USER=7KF1I2CYE25G2R7HWCVL
+      - MINIO_ROOT_PASSWORD=2BYAzXng14JMBfjB3ZCj6SoHlSJqqzDL8Ke5LnBE
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./minio-data:/data
+
+  # 4. Storage API (Go + Redis + S3)
+  storage-api:
+    build:
+      context: ../services/storage-api
+      dockerfile: Dockerfile
+    container_name: storage-api
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=:8001
+      - REDIS_HOST=hyper-redis
+      - S3_ENDPOINT=hyper-minio:9000 # Pointing to local MinIO container
+      - AWS_ACCESS_KEY_ID=7KF1I2CYE25G2R7HWCVL
+      - AWS_SECRET_ACCESS_KEY=2BYAzXng14JMBfjB3ZCj6SoHlSJqqzDL8Ke5LnBE
+    depends_on:
+      - hyper-redis
+      - hyper-minio
+
+  # 5. SMS Service (Go + Kafka + Redis Pub/Sub)
+  sms-service:
+    build:
+      context: ../services/sms-service
+      dockerfile: Dockerfile
+    container_name: sms-service
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=:8002
+      - REDIS_URL=hyper-redis:6379
+      - KAFKA_SERVER=hyper-kafka:9092
+      - PUBLIC_KEY_PATH=/app/certs/public_key.pem
+    depends_on:
+      - hyper-redis
+      - hyper-kafka
+    volumes:
+      # Injecting public key for JWT verification
+      - ../services/hyper-id/certs:/app/certs:ro

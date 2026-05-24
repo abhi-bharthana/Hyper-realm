@@ -1,4 +1,4 @@
-# Build Stage (Version updated to 1.26 to match go.mod)
+# Build Stage
 FROM golang:1.26-bookworm AS builder
 WORKDIR /app
 
@@ -6,9 +6,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code and build
+# Copy source code and build (CGO_ENABLED=0 is critical for static binary)
 COPY . .
-RUN go build -o main ./cmd/server/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build -o main ./cmd/server/main.go
 
 # Run Stage (Lightweight Debian)
 FROM debian:bookworm-slim
@@ -17,7 +17,9 @@ WORKDIR /app
 # Copy the compiled binary from builder
 COPY --from=builder /app/main .
 
-# Expose API port
+# Make it executable
+RUN chmod +x /app/main 
+
 EXPOSE 8082
 
 # Start the engine

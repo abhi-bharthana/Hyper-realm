@@ -16,6 +16,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const token = localStorage.getItem("hyper_id_token");
+    // ⚡ Local state verification fallback
+    const isOnboardedLocal = localStorage.getItem("hyper_onboarded") === "true";
     
     if (!token) {
       router.push("/login");
@@ -25,14 +27,14 @@ export default function DashboardPage() {
     try {
       const decoded: any = jwtDecode(token);
       
-      // 🚨 ONBOARDING GUARD: Agar status pending hai toh seedha onboarding pe bhejo
-      if (decoded.status === "pending_onboarding") {
+      // 🎯 FIX: Agar token pending bol raha hai, par local database flow trigger ho chuka hai, toh bypass hone do
+      if (decoded.status === "pending_onboarding" && !isOnboardedLocal) {
         router.push("/onboarding");
         return;
       }
 
-      // Username set karo
-      setUsername(decoded.username || "OPERATOR");
+      // Username priority mapping
+      setUsername(decoded.username || decoded.nickname || "OPERATOR");
     } catch (error) {
       console.error("Auth Token Invalid:", error);
       router.push("/login");
@@ -56,7 +58,11 @@ export default function DashboardPage() {
               <p className="text-[10px] font-black text-primary uppercase tracking-[0.4em] mb-6">Neural Activity</p>
               <div className="h-28 flex items-end gap-1.5">
                  {[40, 70, 45, 90, 65, 80, 50, 60, 85].map((h, i) => (
-                   <div key={i} className="flex-1 bg-primary/20 rounded-t-lg h-[80%]" />
+                   <div 
+                     key={i} 
+                     className="flex-1 bg-primary/20 rounded-t-lg transition-all duration-500" 
+                     style={{ height: `${h}%` }} // Dynamic heights inline inject kar di taaki graph sahi dikhe
+                   />
                  ))}
               </div>
            </motion.div>

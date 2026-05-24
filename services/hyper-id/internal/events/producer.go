@@ -51,3 +51,35 @@ func PublishUserEvent(id string, username string, role string) {
 		log.Printf("✅ [Event Pushed] New User '%s' sent to Search Engine!", username)
 	}
 }
+
+// Add this function to internal/events/producer.go
+func PublishProfileUpdate(hid string, username string, firstName string, lastName string, nickname string) {
+	if Producer == nil {
+		log.Println("⚠️ Kafka Producer not initialized")
+		return
+	}
+
+	topic := "user-events"
+	// Search engine ko naye fields chahiye
+	data := map[string]interface{}{
+		"hid":        hid,
+		"username":   username,
+		"first_name": firstName,
+		"last_name":  lastName,
+		"nickname":   nickname,
+		"role":       "User",
+	}
+
+	payload, _ := json.Marshal(data)
+
+	err := Producer.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          payload,
+	}, nil)
+
+	if err != nil {
+		log.Printf("❌ Failed to push profile update to Kafka: %v", err)
+	} else {
+		log.Printf("✅ [Event Pushed] Profile update for '%s' sent to Search Engine!", username)
+	}
+}
