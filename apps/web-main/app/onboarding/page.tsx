@@ -16,6 +16,7 @@ export default function OnboardingPage() {
     first_name: "",
     last_name: "",
     nickname: "",
+    gender: "", // 🚀 NAYA STATE ADD KIYA HAI
   });
 
   // 🛡️ Guard Engine: Only check for authentication token presence
@@ -32,28 +33,34 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      // 🎯 CORE PAYLOAD ALIGNMENT: Go backend 'nickname' aur 'bio' accept karta hai.
-      // Operator Handle (username) ko hum 'nickname' field me aur casual fields ko 'bio' me contract kar rahe hain.
+      // 🎯 CORE PAYLOAD ALIGNMENT: Ab hum wo exact fields bhej rahe hain 
+      // jo humne backend ke 'OnboardingRequest' struct me banaye the!
       const payload = {
-        nickname: formData.username, 
+        username: formData.username,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        nickname: formData.nickname,
+        gender: formData.gender, // <-- Bheja gender backend ko
+        
+        // Agar backend abhi bhi bio expect kar raha hai as fallback
         bio: formData.nickname || `${formData.first_name} ${formData.last_name}`.trim() || "Active Operator in Hyper-Realm", 
       };
 
-      // Hyper-Hub par profile entry upsert (INSERT or UPDATE) karo
+      // ⚠️ Dhyan rakhna: Agar tu 'hyper-id' wali API hit karna chahta hai jo humne abhi 
+      // edit ki thi, toh URL uske hisaab se adjust kar lena yahan!
       const data = await api.post(`${API_URLS.HUB}/profile/update`, payload);
 
       if (data && data.token) {
         localStorage.setItem("hyper_id_token", data.token);
       }
 
-      // ⚡ STATE CACHE LOCK: Backend response ke baad parameters local storage me feed karo 
-      // taaki global navbar aur internal context updates me "GUEST" default text bypass ho sake.
+      // ⚡ STATE CACHE LOCK: Backend response ke baad parameters local storage me feed karo
       localStorage.setItem("hyper_onboarded", "true");
       localStorage.setItem("hyper_username", formData.username);
 
       console.log("Spacer ✅ Identity Established successfully!");
       
-      // 🚀 STATE RE-INITIALIZATION: window.location use kiya taaki full app context components clear hokar fresh reload ho sakein.
+      // 🚀 STATE RE-INITIALIZATION: Full app context components clear hokar fresh reload
       window.location.href = "/dashboard";
     } catch (err: any) {
       console.error("Onboarding Error:", err);
@@ -136,6 +143,29 @@ export default function OnboardingPage() {
                 value={formData.nickname}
                 onChange={(e) => setFormData({...formData, nickname: e.target.value})}
               />
+            </div>
+          </div>
+
+          {/* 🚀 NEW: Gender Selection Field */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-2">Gender *</label>
+            <div className="relative">
+              {/* Native select drop-down styled properly for Dark Mode/Glassmorphism */}
+              <select 
+                required
+                className="w-full bg-background/50 border border-border rounded-2xl py-3 px-4 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none text-foreground"
+                value={formData.gender}
+                onChange={(e) => setFormData({...formData, gender: e.target.value})}
+              >
+                {/* Options background color explicit rakhi hai taaki dropdown open hone par transparent na lage (bug-free) */}
+                <option value="" disabled className="bg-black text-muted-foreground">Select Gender</option>
+                <option value="male" className="bg-black">Male</option>
+                <option value="female" className="bg-black">Female</option>
+                <option value="other" className="bg-black">Other</option>
+                <option value="prefer_not_to_say" className="bg-black">Prefer not to say</option>
+              </select>
+              {/* Custom Down Arrow (Simple CSS border trick) */}
+              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 border-l-transparent border-r-transparent border-t-muted-foreground border-[5px] border-b-0" />
             </div>
           </div>
 

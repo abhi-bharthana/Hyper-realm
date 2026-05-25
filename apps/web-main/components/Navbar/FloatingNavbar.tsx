@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useChatStore } from "@/store/useChatStore";
+// 1. Imports update karo
+import { api, API_URLS } from "@/lib/api";
 
 import { BrandBlock } from "./segments/BrandBlock";
 import { SearchBlock } from "./segments/SearchBlock";

@@ -4,8 +4,22 @@ import { useState, useEffect } from "react";
 import { api, API_URLS } from "@/lib/api"; 
 import { jwtDecode } from "jwt-decode"; 
 
+// 🚀 NAYA: TypeScript Interface for Profile Data taaki frontend crash na ho aur suggestions milein
+export interface UserProfileData {
+  hid: string;
+  nickname: string;
+  bio: string;
+  avatar_url: string;
+  rank: string;
+  trust_score: number;
+  gender: string;               // <-- NAYA FIELD YAHAN ADD KIYA HAI
+  created_at?: string;
+  connection_status?: string;   // Sirf external profiles mein aata hai
+}
+
 export function useProfile(userId: string) {
-  const [profile, setProfile] = useState<any>(null);
+  // 🚀 NAYA: State ko type-safe bana diya `any` hata kar
+  const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [friendsCount, setFriendsCount] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<string>("none"); 
   const [loading, setLoading] = useState(true);

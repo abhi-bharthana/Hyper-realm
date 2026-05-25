@@ -18,7 +18,9 @@ CREATE TABLE h_profiles (
     last_name TEXT,
     nickname TEXT,
     avatar_url TEXT,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    gender VARCHAR(20),              -- 🚀 NAYA FIELD YAHAN ADD KIYA HAI
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (hid)                -- Good practice: Makes sure one user has only one profile
 );
 
 -- Indexing for fast lookups

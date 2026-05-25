@@ -13,15 +13,17 @@ import (
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
+// 🚀 1. Payload mein Gender add kar diya
 type OnboardingRequest struct {
 	Username  string `json:"username"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Nickname  string `json:"nickname"`
+	Gender    string `json:"gender"` // <-- Naya field
 }
 
 func HandleSetUsername(w http.ResponseWriter, r *http.Request) {
-	ctxValue := r.Context().Value(UserIDKey)
+	ctxValue := r.Context().Value(UserIDKey) // Make sure UserIDKey is defined in your context middleware
 	if ctxValue == nil {
 		http.Error(w, "Unauthorized: Missing User ID", http.StatusUnauthorized)
 		return
@@ -39,6 +41,11 @@ func HandleSetUsername(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Optional: Basic validation for gender
+	if req.Gender == "" {
+		req.Gender = "prefer_not_to_say" // Fallback agar frontend se khali aaye
+	}
+
 	tx, err := db.DB.Begin()
 	if err != nil {
 		http.Error(w, "Server error", http.StatusInternalServerError)
@@ -46,16 +53,17 @@ func HandleSetUsername(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// 1. Update h_users (Active status)
+	// 1. Update h_users (Username & Active status)
 	_, err = tx.Exec(`UPDATE h_users SET username = $1, account_status = 'active' WHERE hid = $2`, req.Username, hid)
 	if err != nil {
 		http.Error(w, "Username already taken", http.StatusConflict)
 		return
 	}
 
-	// 2. Insert h_profiles (User details)
-	_, err = tx.Exec(`INSERT INTO h_profiles (hid, username, first_name, last_name, nickname) VALUES ($1, $2, $3, $4, $5)`,
-		hid, req.Username, req.FirstName, req.LastName, req.Nickname)
+	// 🚀 2. Insert h_profiles (User details + Gender)
+	// Note: Removed 'username' from here as it belongs to h_users table
+	_, err = tx.Exec(`INSERT INTO h_profiles (hid, first_name, last_name, nickname, gender) VALUES ($1, $2, $3, $4, $5)`,
+		hid, req.FirstName, req.LastName, req.Nickname, req.Gender)
 	if err != nil {
 		log.Println("DEBUG: DB Insert Error:", err)
 		http.Error(w, "Error saving profile", http.StatusInternalServerError)
@@ -67,17 +75,19 @@ func HandleSetUsername(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Trigger Search Index Update (Asynchronous)
+	// 🚀 3. Trigger Search Index Update (Asynchronous)
 	go func() {
 		// Docker internal networking: service name 'hyper-search' should resolve
 		searchUrl := "http://hyper-search:8082/api/v1/search/index"
 
+		// Gender ko bhi search payload mein bhej diya, in case future mein filter lagana ho
 		payload := map[string]interface{}{
 			"hid":        hid,
 			"username":   req.Username,
 			"first_name": req.FirstName,
 			"last_name":  req.LastName,
 			"nickname":   req.Nickname,
+			"gender":     req.Gender, // <-- Added here
 		}
 
 		jsonData, _ := json.Marshal(payload)

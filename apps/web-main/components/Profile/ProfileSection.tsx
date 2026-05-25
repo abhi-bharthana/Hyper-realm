@@ -16,13 +16,15 @@ export function ProfileSection({ userId, isOwner }: { userId: string; isOwner: b
   // Edit State Triggers
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({ nickname: "", bio: "" });
+  // 🚀 NAYA: gender state add kiya
+  const [formData, setFormData] = useState({ nickname: "", bio: "", gender: "" });
 
   useEffect(() => {
     if (profile) {
       setFormData({
         nickname: profile.nickname || "",
         bio: profile.bio || "",
+        gender: profile.gender || "", // 🚀 Load existing gender from backend
       });
     }
   }, [profile]);
@@ -44,6 +46,7 @@ export function ProfileSection({ userId, isOwner }: { userId: string; isOwner: b
       await api.post(`${API_URLS.HUB}/profile/update`, {
         nickname: formData.nickname,
         bio: formData.bio,
+        gender: formData.gender, // 🚀 API ko naya gender bheja
       });
 
       localStorage.setItem("hyper_username", formData.nickname);
@@ -101,7 +104,7 @@ export function ProfileSection({ userId, isOwner }: { userId: string; isOwner: b
         <button 
           onClick={() => {
             setIsEditing(false);
-            setFormData({ nickname: profile.nickname || "", bio: profile.bio || "" });
+            setFormData({ nickname: profile.nickname || "", bio: profile.bio || "", gender: profile.gender || "" });
           }}
           className="p-2 rounded-full border border-border hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
         >

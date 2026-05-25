@@ -12,7 +12,7 @@ import (
 
 // 1. GetProfileHandler: Authenticated user ka apna profile
 func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
-	val := r.Context().Value(UserHIDKey)
+	val := r.Context().Value(UserHIDKey) // Ensure UserHIDKey is defined in your middleware
 	hid, ok := val.(string)
 	if !ok {
 		http.Error(w, "Unauthorized: Invalid Session", http.StatusUnauthorized)
@@ -20,13 +20,14 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var p models.UserProfile
+	// 🚀 GENDER FIELD ADDED with COALESCE fallback
 	query := `
-        SELECT hid, nickname, COALESCE(bio, ''), COALESCE(avatar_url, ''), COALESCE(rank, 'Agent'), COALESCE(trust_score, 1.0) 
+        SELECT hid, nickname, COALESCE(bio, ''), COALESCE(avatar_url, ''), COALESCE(rank, 'Agent'), COALESCE(trust_score, 1.0), COALESCE(gender, 'prefer_not_to_say') 
         FROM user_profiles 
         WHERE hid=$1`
 
 	err := db.DB.QueryRow(query, hid).Scan(
-		&p.HID, &p.Nickname, &p.Bio, &p.AvatarURL, &p.Rank, &p.TrustScore,
+		&p.HID, &p.Nickname, &p.Bio, &p.AvatarURL, &p.Rank, &p.TrustScore, &p.Gender,
 	)
 
 	if err != nil {
@@ -34,10 +35,12 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("🆕 [Hyper-Hub] Creating new profile for HID: %s", hid)
 			defaultNickname := "New_Commander"
 			defaultBio := "Welcome to the Hyper-Realm. Set your bio."
+			defaultGender := "prefer_not_to_say" // 🚀 Default fallback for auto-creation
 
+			// 🚀 INSERT query updated to include gender
 			_, insertErr := db.DB.Exec(
-				"INSERT INTO user_profiles (hid, nickname, bio, rank, trust_score) VALUES ($1, $2, $3, $4, $5)",
-				hid, defaultNickname, defaultBio, "Agent", 1.0,
+				"INSERT INTO user_profiles (hid, nickname, bio, rank, trust_score, gender) VALUES ($1, $2, $3, $4, $5, $6)",
+				hid, defaultNickname, defaultBio, "Agent", 1.0, defaultGender,
 			)
 
 			if insertErr != nil {
@@ -56,6 +59,7 @@ func GetProfileHandler(w http.ResponseWriter, r *http.Request) {
 				HID:        hid,
 				Nickname:   defaultNickname,
 				Bio:        defaultBio,
+				Gender:     defaultGender, // 🚀 Object initialization updated
 				Rank:       "Agent",
 				TrustScore: 1.0,
 			}
@@ -82,20 +86,26 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	var updateData struct {
 		Nickname string `json:"nickname"`
 		Bio      string `json:"bio"`
+		Gender   string `json:"gender"` // 🚀 Naya field add kiya request payload mein
 	}
 	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
 		http.Error(w, "Invalid Request Body", http.StatusBadRequest)
 		return
 	}
 
-	// 🎯 INTUITIVE UPSERT: Agar row nahi hai toh INSERT hogi, agar hai toh UPDATE hogi
-	query := `
-        INSERT INTO user_profiles (hid, nickname, bio, rank, trust_score) 
-        VALUES ($1, $2, $3, 'Agent', 1.0)
-        ON CONFLICT (hid) 
-        DO UPDATE SET nickname = EXCLUDED.nickname, bio = EXCLUDED.bio`
+	// 🛡️ Fallback agar frontend se gender nahi aaya
+	if updateData.Gender == "" {
+		updateData.Gender = "prefer_not_to_say"
+	}
 
-	_, err := db.DB.Exec(query, hid, updateData.Nickname, updateData.Bio)
+	// 🎯 INTUITIVE UPSERT: 🚀 Gender ko dono (INSERT aur UPDATE) jagah add kiya
+	query := `
+        INSERT INTO user_profiles (hid, nickname, bio, rank, trust_score, gender) 
+        VALUES ($1, $2, $3, 'Agent', 1.0, $4)
+        ON CONFLICT (hid) 
+        DO UPDATE SET nickname = EXCLUDED.nickname, bio = EXCLUDED.bio, gender = EXCLUDED.gender`
+
+	_, err := db.DB.Exec(query, hid, updateData.Nickname, updateData.Bio, updateData.Gender)
 
 	if err != nil {
 		log.Printf("❌ [Hyper-Hub] Profile Upsert Failed for HID %s: %v", hid, err)
@@ -103,10 +113,12 @@ func UpdateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Kafka event payload mein bhi gender bhej diya, in case Analytics/Search engine ko zaroorat pade
 	go events.PublishEvent("PROFILE_UPDATED", map[string]interface{}{
 		"hid":      hid,
 		"nickname": updateData.Nickname,
 		"bio":      updateData.Bio,
+		"gender":   updateData.Gender, // 🚀 Event update
 		"action":   "PROFILE_UPDATED",
 	})
 
@@ -134,11 +146,11 @@ func SearchUsersHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 🔥 FIX: hid ko hid::TEXT mein cast kiya taaki Postgres ILIKE chala sake
 	query := `
-		SELECT hid, nickname, COALESCE(avatar_url, ''), COALESCE(rank, 'Agent')
-		FROM user_profiles 
-		WHERE nickname ILIKE $1 OR hid::TEXT ILIKE $1
-		LIMIT 10
-	`
+        SELECT hid, nickname, COALESCE(avatar_url, ''), COALESCE(rank, 'Agent')
+        FROM user_profiles 
+        WHERE nickname ILIKE $1 OR hid::TEXT ILIKE $1
+        LIMIT 10
+    `
 
 	rows, err := db.DB.Query(query, "%"+searchQuery+"%")
 	if err != nil {

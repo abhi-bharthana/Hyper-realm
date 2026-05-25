@@ -31,11 +31,13 @@ func GetOtherProfileHandler(w http.ResponseWriter, r *http.Request) {
 	p.ConnectionStatus = "none"
 
 	// 🎯 FIX: Table ka naam wapas 'user_profiles' kar diya hai
-	query := `SELECT hid, nickname, COALESCE(bio, ''), COALESCE(avatar_url, ''), COALESCE(rank, 'Agent'), COALESCE(trust_score, 1.0) 
+	// 🚀 GENDER ADDED: COALESCE(gender, 'prefer_not_to_say') lagaya taaki purane users ka backend break na ho
+	query := `SELECT hid, nickname, COALESCE(bio, ''), COALESCE(avatar_url, ''), COALESCE(rank, 'Agent'), COALESCE(trust_score, 1.0), COALESCE(gender, 'prefer_not_to_say') 
               FROM user_profiles WHERE hid=$1`
 
+	// 🚀 SCAN MEIN GENDER KI ADDRESS POINTING ADD KAR DI (&p.Gender)
 	err := db.DB.QueryRow(query, targetHID).Scan(
-		&p.HID, &p.Nickname, &p.Bio, &p.AvatarURL, &p.Rank, &p.TrustScore,
+		&p.HID, &p.Nickname, &p.Bio, &p.AvatarURL, &p.Rank, &p.TrustScore, &p.Gender,
 	)
 
 	if err != nil {
