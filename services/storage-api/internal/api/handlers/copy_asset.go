@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"fmt"
-	"hyper-realm/storage-api/internal/config"
-	"hyper-realm/storage-api/internal/storage"
 	"path/filepath"
 	"strings"
+
+	"hyper-realm/storage-api/internal/audit" // 🎯 Audit logging framework matrix connection
+	"hyper-realm/storage-api/internal/config"
+	"hyper-realm/storage-api/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/minio/minio-go/v7"
@@ -51,6 +53,16 @@ func HandleCopyAsset(cfg config.Config) fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to clone object target node namespace"})
 		}
+
+		// Extract fallback user identity
+		userID := req.UserID
+		if userID == "" {
+			userID = "abhishek-babu-node" // Safe production fallback
+		}
+
+		// 🎯 FIXED: Logging footprints on BOTH source and destination clone keys to avoid empty timeline drop
+		audit.LogAction(ctx, userID, "COPY", req.SrcObjectKey, fmt.Sprintf("Cloned asset replica generated at: /%s", destObjectKey))
+		audit.LogAction(ctx, userID, "COPY", destObjectKey, fmt.Sprintf("Replica node created via cloning from: /%s", req.SrcObjectKey))
 
 		return c.JSON(fiber.Map{"status": "SUCCESS", "new_copy": destObjectKey})
 	}

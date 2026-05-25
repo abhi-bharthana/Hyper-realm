@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
-import { Zap, Loader2, ShieldCheck } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-import { api, API_URLS } from "@/lib/api"; // <-- Naya centralized API client import kiya
+import { API_URLS } from "@/lib/api"; // Centralized URL layer import keeps strict addresses locked
 
 function LoginContent() {
   const router = useRouter();
@@ -17,33 +17,37 @@ function LoginContent() {
     setError("");
 
     try {
-      // 1. Google raw credential token ko Hyper-ID (8080) ke saath exchange karo
-      // api.post khud fetch, error handling aur JSON parsing manage karega
-      const data = await api.post(
-        `${API_URLS.ID}/auth/google`, 
-        {}, // Body empty hai kyunki token header mein jaa raha hai
-        { 
-          headers: { 
-            "X-Google-Token": credentialResponse.credential 
-          } 
-        }
-      );
+      // 🎯 FIXED: Direct native fetch bypass to guarantee header allocation and prevent wrapper argument crashes
+      const response = await fetch(`${API_URLS.ID}/auth/google`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Google-Token": credentialResponse.credential // Strict Cryptographic ID Token
+        },
+        body: JSON.stringify({}) // Explicit blank schema payload body
+      });
 
-      // 2. Hyper-ID ka signed RSA JWT save karo
-      // Yeh save karna zaroori hai taaki api.ts aage ki requests mein isko use kar sake
+      // Catching server error footprints immediately
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload.message || `Neural link hand-shake rejected with status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // 2. Hyper-ID signed RSA JWT save lock
       localStorage.setItem("hyper_id_token", data.token);
 
-      // 3. SMART ROUTING: Backend status ke hisaab se redirect karo
+      // 3. SMART MATRIX ROUTING: Evaluation based on authentication response parameters
       if (data.status === "pending_onboarding") {
-        router.push("/onboarding"); // Naya user -> Username setup page
+        router.push("/onboarding"); // Fresh user node redirection
       } else {
-        router.push("/dashboard"); // Purana user -> Seedha matrix ke andar
+        router.push("/dashboard"); // Established user sync matrix load
       }
       
     } catch (err: any) {
       console.error("Auth Exchange Error:", err);
-      // api.ts backend se aaye error message ko direct throw karta hai
-      setError(err.message || "Neural Link connection refused.");
+      setError(err.message || "Neural Link connection refused by target cluster.");
       setIsSyncing(false);
     }
   };
@@ -65,7 +69,7 @@ function LoginContent() {
         </div>
 
         {error && (
-          <div className="p-3 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-bold uppercase tracking-wider">
+          <div className="p-3 text-xs bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-bold uppercase tracking-wider performance-layer">
             {error}
           </div>
         )}
@@ -91,7 +95,6 @@ function LoginContent() {
   );
 }
 
-// Apni Google Client ID yahan replace kar lena config se
 export default function LoginPage() {
   return (
     <GoogleOAuthProvider clientId="306788201596-phllg7davd9ib2vkm1adrqrrv8r6ogoi.apps.googleusercontent.com">

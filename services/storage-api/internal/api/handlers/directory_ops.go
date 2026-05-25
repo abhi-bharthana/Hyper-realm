@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"fmt"
+	"strings"
+
+	"hyper-realm/storage-api/internal/audit" // 🎯 ADDED: Audit engine framework
 	"hyper-realm/storage-api/internal/config"
 	"hyper-realm/storage-api/internal/storage"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/minio/minio-go/v7"
@@ -62,6 +64,9 @@ func HandleManageDirectory(cfg config.Config) fiber.Handler {
 			// Drop deep trace legacy record reference immediately
 			_ = storage.Client.RemoveObject(ctx, cfg.BucketName, obj.Key, minio.RemoveObjectOptions{})
 		}
+
+		// 🎯 FOOTPRINT CAPTURE: Logging whole structural directory modification at once
+		audit.LogAction(ctx, req.UserID, "MOVE", req.CurrentPath, fmt.Sprintf("Relocated/Renamed virtual folder architecture block to: %s", req.NewPathName))
 
 		return c.JSON(fiber.Map{"status": "SUCCESS", "allocated_path": req.NewPathName})
 	}

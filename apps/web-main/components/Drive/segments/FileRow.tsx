@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-// 🎯 Mapped all precise feature icons from lucide-react
-import { File, Eye, Trash2, FileDown, ArrowRightLeft, Copy, Edit3, Info } from "lucide-react";
+// 🎯 Mapped all features including the brand new Share2 icon
+import { File, Eye, Trash2, FileDown, ArrowRightLeft, Copy, Edit3, Info, Share2 } from "lucide-react";
 
 interface StorageFile {
   id: string;
@@ -17,9 +17,10 @@ interface FileRowProps {
   onPreview: (file: StorageFile) => void;
   onDelete: (objectKey: string) => void;
   onMoveClick: (file: StorageFile) => void;
-  onCopyClick: (file: StorageFile) => void;       // 🎯 ADDED
-  onRenameClick: (file: StorageFile) => void;     // 🎯 ADDED
-  onDetailsClick: (file: StorageFile) => void;    // 🎯 ADDED
+  onCopyClick: (file: StorageFile) => void;       
+  onRenameClick: (file: StorageFile) => void;     
+  onDetailsClick: (file: StorageFile) => void;    
+  onShareClick: (file: StorageFile) => void;      // 🎯 ADDED: Share callback signature
   gatewayUrl: string;
   primaryColor?: string;
   isLight: boolean;
@@ -34,6 +35,7 @@ export const FileRow = React.memo(function FileRow({
   onCopyClick,
   onRenameClick,
   onDetailsClick,
+  onShareClick, // 🎯 De-structured
   gatewayUrl, 
   primaryColor, 
   isLight 
@@ -48,7 +50,7 @@ export const FileRow = React.memo(function FileRow({
           <File className="w-3.5 h-3.5" style={{ color: primaryColor }} />
         </div>
         <div className="overflow-hidden">
-          <h4 className="font-bold text-xs uppercase italic tracking-wide truncate max-w-[150px] sm:max-w-xs">{file.file_name}</h4>
+          <h4 className="font-bold text-xs uppercase italic tracking-wide truncate max-w-[120px] sm:max-w-xs">{file.file_name}</h4>
           <p className={`text-[8px] font-mono uppercase tracking-widest mt-0.5 ${isLight ? 'text-slate-400' : 'text-zinc-500'}`}>
             {(file.file_size / (1024 * 1024)).toFixed(2)} MB • {new Date(file.created_at).toLocaleDateString()}
           </p>
@@ -60,16 +62,27 @@ export const FileRow = React.memo(function FileRow({
         {/* Preview Stream Button */}
         <button onClick={() => onPreview(file)} className={`p-2 border rounded-xl transition-all active:scale-95 ${isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`} title="Preview Shard"><Eye className="w-3.5 h-3.5" /></button>
         
-        {/* 🎯 View Details / Diagnostic Side-Panel Trigger */}
+        {/* View Details / Diagnostic Side-Panel Trigger */}
         <button onClick={() => onDetailsClick(file)} className={`p-2 border rounded-xl transition-all active:scale-95 ${isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`} title="Asset Diagnostic Details"><Info className="w-3.5 h-3.5" /></button>
         
+        {/* 🎯 Secure Token Link Share Trigger */}
+        <button 
+          onClick={() => onShareClick(file)} 
+          className={`p-2 border rounded-xl transition-all active:scale-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'
+          }`} 
+          title="Forge Public Share Link"
+        >
+          <Share2 className="w-3.5 h-3.5" />
+        </button>
+
         {/* Relocate Node / Move Button */}
         <button onClick={() => onMoveClick(file)} className={`p-2 border rounded-xl transition-all active:scale-95 flex items-center justify-center ${isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`} title="Move Node Path"><ArrowRightLeft className="w-3.5 h-3.5" /></button>
         
-        {/* 🎯 Create Duplicate Replica / Copy Button */}
+        {/* Create Duplicate Replica / Copy Button */}
         <button onClick={() => { if(confirm("Create asset duplicate shard?")) onCopyClick(file); }} className={`p-2 border rounded-xl transition-all active:scale-95 flex items-center justify-center ${isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`} title="Copy Asset Replica"><Copy className="w-3.5 h-3.5" /></button>
         
-        {/* 🎯 Node Alias Mutation / Rename Button */}
+        {/* Node Alias Mutation / Rename Button */}
         <button onClick={() => onRenameClick(file)} className={`p-2 border rounded-xl transition-all active:scale-95 flex items-center justify-center ${isLight ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' : 'bg-white/5 border-white/5 text-zinc-400 hover:text-white'}`} title="Rename Shard Object"><Edit3 className="w-3.5 h-3.5" /></button>
         
         {/* Native Download Anchor Node */}
@@ -89,5 +102,6 @@ export const FileRow = React.memo(function FileRow({
          prevProps.onMoveClick === nextProps.onMoveClick &&
          prevProps.onCopyClick === nextProps.onCopyClick &&
          prevProps.onRenameClick === nextProps.onRenameClick &&
-         prevProps.onDetailsClick === nextProps.onDetailsClick;
+         prevProps.onDetailsClick === nextProps.onDetailsClick &&
+         prevProps.onShareClick === nextProps.onShareClick; // 🎯 Added validation check
 });

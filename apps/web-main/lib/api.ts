@@ -1,9 +1,11 @@
 // web-main/lib/api.ts
 
 export const API_URLS = {
-  HUB: "http://localhost:8081/api/v1", // Go Backend Core API mapping
-  ID: "http://localhost:8081/api/v1"  // Hyper-ID scope endpoint mapping
+  HUB: "http://localhost:8081/api/v1",     // Go Backend Core API mapping
+  ID: "http://localhost:8080/api/v1",      // Hyper-ID scope endpoint mapping
+  STORAGE: "http://localhost:8001/api/v1"  // 🎯 ADDED: Isolated Storage Engine Target Link
 };
+
 async function fetchClient(url: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("hyper_id_token") : null;
   const headers = new Headers(options.headers);
@@ -56,4 +58,64 @@ export const api = {
   },
 
   raw: fetchClient
+};
+
+// =========================================================================
+// 🏷️ NATIVE OBJECT TAGGING ENGINE METHODS (Direct MinIO Mapping Metadata)
+// =========================================================================
+
+// 🎯 Save/Update Tags onto an asset node object
+export const saveAssetTags = async (objectKey: string, tags: string[]): Promise<any> => {
+  try {
+    const response = await fetchClient(`${API_URLS.STORAGE}/storage/asset/tags`, {
+      method: "POST",
+      body: JSON.stringify({
+        object_key: objectKey,
+        tags: tags
+      })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    return await response.json();
+  } catch (error) {
+    console.error("Tag Save Transaction Failure:", error);
+    throw error;
+  }
+};
+
+// 🎯 Fetch Tags array directly from MinIO object metadata blocks
+export const getAssetTags = async (objectKey: string): Promise<string[]> => {
+  try {
+    const response = await fetchClient(`${API_URLS.STORAGE}/storage/asset/tags?object_key=${encodeURIComponent(objectKey)}`, {
+      method: "GET"
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.tags || [];
+  } catch (error) {
+    console.error("Tag Fetch Transaction Failure:", error);
+    return [];
+  }
+};
+
+// =========================================================================
+// 📊 ECOSYSTEM AUDIT LOGS TELEMETRY METHODS (Timeline Activity Engine)
+// =========================================================================
+
+// 🎯 Fetch dynamic audit mutation traces (Global stack or targeted object key filter)
+export const fetchAuditFootprints = async (userId: string, objectKey?: string): Promise<any[]> => {
+  try {
+    let url = `${API_URLS.STORAGE}/audit/footprints?user_id=${encodeURIComponent(userId)}`;
+    if (objectKey) {
+      url += `&object_key=${encodeURIComponent(objectKey)}`;
+    }
+
+    const response = await fetchClient(url, { method: "GET" });
+    if (!response.ok) return [];
+    
+    const data = await response.json();
+    return data.footprints || [];
+  } catch (error) {
+    console.error("Failed to compile streaming audit logs engine:", error);
+    return [];
+  }
 };

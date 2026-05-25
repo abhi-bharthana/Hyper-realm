@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/url"
 
+	"hyper-realm/storage-api/internal/audit" // 🎯 ADDED: Audit footprint engine logging track
 	"hyper-realm/storage-api/internal/config"
 	"hyper-realm/storage-api/internal/storage"
 
@@ -24,6 +25,9 @@ func HandleRemoveAsset(cfg config.Config) fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to terminate target object node block", "details": err.Error()})
 		}
+
+		// 🎯 FOOTPRINT CAPTURE: Shard reference clean tracking log upon successful block destruction
+		audit.LogAction(ctx, userID, "DELETE", objectKey, "Hard deletion executed from storage mesh successfully")
 
 		return c.JSON(fiber.Map{"status": "PURGED", "object_key": objectKey})
 	}

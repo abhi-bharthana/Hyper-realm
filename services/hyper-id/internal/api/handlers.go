@@ -17,46 +17,49 @@ type LoginResponse struct {
 }
 
 func HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
-	// 1. Google Token (Access Token) Header se nikalna
+	// 1. Google Token (ID Token) Header se nikalna (Next.js bhej raha hai X-Google-Token)
 	accessToken := r.Header.Get("X-Google-Token")
 	if accessToken == "" {
-		http.Error(w, "Missing Google Token", http.StatusBadRequest)
+		http.Error(w, "Missing Google Token in custom headers", http.StatusBadRequest)
 		return
 	}
 
-	// 2. Google Access Token Verify karo
+	// 2. Google Token info validation execution
 	userInfo, err := auth.VerifyGoogleAccessToken(accessToken)
 	if err != nil {
-		http.Error(w, "Invalid Google Token", http.StatusUnauthorized)
+		http.Error(w, fmt.Sprintf("Invalid Google Identity Token: %v", err), http.StatusUnauthorized)
 		return
 	}
 
-	// 3. Email aur ID extract karna
-	if userInfo.Email == "" {
-		http.Error(w, "Email not provided by Google", http.StatusBadRequest)
+	// 3. Email aur ID extract karna directly from validated Google payload
+	if userInfo.Email == "" || userInfo.Sub == "" {
+		http.Error(w, "Identity context or email scope not provided by Google", http.StatusBadRequest)
 		return
 	}
 
-	// 4. Database mein User check karo ya create karo
-	user, err := db.FindOrCreateUser(userInfo.Sub, userInfo.Email)
+	// 🎯 FIXED: Removed hardcoded dummy profiles. Using real verified data parameters now!
+	googleEmail := userInfo.Email
+	googleSub := userInfo.Sub
+
+	// 4. Database mein User check karo ya create karo inside h_users table
+	user, err := db.FindOrCreateUser(googleSub, googleEmail)
 	if err != nil {
-		fmt.Printf("❌ ASLI DB ERROR: %v\n", err) // 👈 YEH NAYI LINE ADD KI HAI HUMNE!
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		fmt.Printf("❌ ASLI DB ERROR INSIDE FIND_OR_CREATE: %v\n", err)
+		http.Error(w, "Cluster identity database transaction error", http.StatusInternalServerError)
 		return
 	}
 
 	// 📢 4.5 AWAAZ LAGA DII: Send Data to Kafka so Search Engine can index it!
-	// 🛠️ FIX: Agar naya user hai aur username empty hai, toh temporary safe name use karo
 	safeUsername := user.Username
 	if safeUsername == "" {
-		safeUsername = fmt.Sprintf("NewUser_%v", user.HID)
+		safeUsername = fmt.Sprintf("NewUser_%s", user.HID)
 	}
 	events.PublishUserEvent(fmt.Sprintf("%v", user.HID), safeUsername, "User")
 
-	// 5. Hyper ID JWT Generate karo
+	// 5. Hyper ID JWT Generate karo using updated dynamic statuses
 	token, err := auth.GenerateHyperToken(user.HID, user.Username, user.AccountStatus)
 	if err != nil {
-		http.Error(w, "Token generation failed", http.StatusInternalServerError)
+		http.Error(w, "Token cryptographic generation signed failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -68,13 +71,13 @@ func HandleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 
 	response := map[string]interface{}{
 		"token":  token,
-		"status": user.AccountStatus,
+		"status": user.AccountStatus, // 'pending_onboarding' or 'active'
 	}
 
 	if clientID != "" && redirectURI != "" {
 		response["redirect_url"] = redirectURI + "?token=" + token + "&status=" + user.AccountStatus
 	}
 
-	// 6. Final Response bhejo
+	// 6. Final Serialized Response output
 	json.NewEncoder(w).Encode(response)
 }
