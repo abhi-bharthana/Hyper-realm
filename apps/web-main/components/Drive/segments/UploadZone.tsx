@@ -2,19 +2,19 @@
 
 import { useState, useRef } from "react";
 import { useThemeStore } from "@/store/useThemeStore";
-import { UploadCloud, File, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { UploadCloud, AlertTriangle, CheckCircle2, Pause, Play, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios"; // 🎯 Axios integration for stable chunking
+import axios from "axios";
 
 interface UploadZoneProps {
   isLight: boolean;
   onUploadSuccess?: (newUsage: number) => void;
+  currentFolder?: string; // 🎯 Mapped subfolder context
 }
 
-// 🎯 STANDARD S3 CHUNK SIZE: 5MB
 const CHUNK_SIZE = 5 * 1024 * 1024; 
 
-export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
+export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: UploadZoneProps) {
   const { theme } = useThemeStore();
   const [isDragActive, setIsDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
@@ -22,10 +22,14 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
   const [fileName, setFileName] = useState("");
   const [progress, setProgress] = useState(0);
   const [chunkInfo, setChunkInfo] = useState({ current: 0, total: 0 });
+  const [statusMsg, setStatusMsg] = useState("");
   
+  // 🎯 PAUSE / RESUME TRACKING REF ENGINE
+  const [isPaused, setIsPaused] = useState(false);
+  const pausedRef = useRef(false);
+  const uploadCancelledRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // DRAG EVENTS
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -44,9 +48,16 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
     if (e.target.files && e.target.files[0]) processFile(e.target.files[0]);
   };
 
-  // 🚀 THE AXIOS 3-STEP MULTIPART CHUNK PIPELINE
+  const togglePauseResume = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Avoid triggering file selection panel on click
+    const nextPauseState = !isPaused;
+    setIsPaused(nextPauseState);
+    pausedRef.current = nextPauseState;
+    if (!nextPauseState) setStatusMsg("Re-establishing channel stream...");
+  };
+
+  // 🚀 THE AXIOS 3-STEP RESUMABLE MULTIPART ENGINE
   const processFile = async (file: File) => {
-    // 1. Quota Validation
     const maxLimitBytes = 5 * 1024 * 1024 * 1024; // 5GB
     if (file.size > maxLimitBytes) {
       setErrorMessage("5GB Storage Limit Exceeded!");
@@ -56,36 +67,67 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
 
     setFileName(file.name);
     setUploadStatus('uploading');
+    setIsPaused(false);
+    pausedRef.current = false;
+    uploadCancelledRef.current = false;
     setProgress(0);
+    setStatusMsg("Initializing secure handshake...");
 
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     setChunkInfo({ current: 0, total: totalChunks });
 
     const API_BASE = "http://localhost:8001/api/v1/storage";
-    const USER_ID = "abhishek-babu-node"; // Identity Payload Map
+    const USER_ID = "abhishek-babu-node"; 
     const headers = { "Authorization": "Bearer MOCK_HYPER_ID_JWT_TOKEN" };
 
     try {
       // ==========================================
-      // STEP 1: INITIALIZE MULTIPART UPLOAD
+      // STEP 1: RESUMABLE HANDSHAKE INITIALIZATION
       // ==========================================
       const initForm = new FormData();
       initForm.append("user_id", USER_ID);
       initForm.append("file_name", file.name);
-      initForm.append("content_type", file.type || "application/octet-stream");
+      initForm.append("file_size", file.size.toString()); // Passing size to fetch Redis token hash
+      initForm.append("prefix", currentFolder);
 
       const initRes = await axios.post(`${API_BASE}/upload/init`, initForm, { 
         headers: { ...headers, "Content-Type": "multipart/form-data" } 
       });
-      const { upload_id, object_name } = initRes.data;
       
-      // 🎯 THE CRITICAL FIX: Declaring the tracker array explicitly BEFORE the execution loop starts
+      const { upload_id, object_name, resume_from_part } = initRes.data;
+      const startPart = resume_from_part || 0;
+
+      if (startPart > 0) {
+        setStatusMsg(`Active session cached. Resuming from part ${startPart + 1}...`);
+      } else {
+        setStatusMsg("Connection established. Streaming blocks...");
+      }
+
       const uploadedParts: { PartNumber: number; ETag: string }[] = [];
 
       // ==========================================
       // STEP 2: LOOP & UPLOAD CHUNKS
       // ==========================================
       for (let i = 0; i < totalChunks; i++) {
+        const partNum = i + 1;
+
+        // 🚦 RESUME INTERCEPTION BYPASS
+        if (partNum <= startPart) {
+          const skipProgress = Math.round((partNum / totalChunks) * 100);
+          setProgress(skipProgress);
+          setChunkInfo({ current: partNum, total: totalChunks });
+          continue;
+        }
+
+        // 🛑 SPIN LOCK WHEEL FOR STATE PAUSE DEFERRALS
+        while (pausedRef.current) {
+          setStatusMsg("Transmission deferred (PAUSED)");
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          if (uploadCancelledRef.current) return;
+        }
+
+        setStatusMsg(`Streaming data shard ${partNum} / ${totalChunks}...`);
+
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunkBlob = file.slice(start, end);
@@ -93,52 +135,43 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
         const chunkForm = new FormData();
         chunkForm.append("upload_id", upload_id);
         chunkForm.append("object_name", object_name);
-        chunkForm.append("part_number", (i + 1).toString());
+        chunkForm.append("part_number", partNum.toString());
         chunkForm.append("chunk", chunkBlob, file.name);
 
         const chunkRes = await axios.post(`${API_BASE}/upload/chunk`, chunkForm, { 
           headers: { ...headers, "Content-Type": "multipart/form-data" } 
         });
         
-        // 🚀 Now this will seamlessly find the defined reference array scope!
         uploadedParts.push({
-          PartNumber: i + 1,
+          PartNumber: partNum,
           ETag: chunkRes.data.etag,
         });
 
-        // Update UI Real-time
-        setChunkInfo({ current: i + 1, total: totalChunks });
-        setProgress(Math.round(((i + 1) / totalChunks) * 100));
+        // Live stats tracking metrics updates
+        setChunkInfo({ current: partNum, total: totalChunks });
+        setProgress(Math.round((partNum / totalChunks) * 100));
       }
 
       // ==========================================
-      // STEP 3: COMPLETE & MERGE MULTIPART
+      // STEP 3: COMPLETE COMPOSITION SYNCHRONIZATION
       // ==========================================
-      const completeForm = new FormData();
-      completeForm.append("user_id", USER_ID);
-      completeForm.append("upload_id", upload_id);
-      completeForm.append("object_name", object_name);
-      completeForm.append("total_size", file.size.toString());
-
-      // Pass the collected ETags arrays as JSON string blob for Go's BodyParser
-      const partsBlob = new Blob([JSON.stringify(uploadedParts)], { type: "application/json" });
-      completeForm.append("parts", partsBlob); 
-
-      // In Go Fiber `c.BodyParser` will natively parse raw JSON. So we send a pure JSON POST instead of Form for Step 3 to ensure perfect parsing:
-      const completeRes = await axios.post(`${API_BASE}/upload/complete?user_id=${USER_ID}&upload_id=${upload_id}&object_name=${encodeURIComponent(object_name)}&total_size=${file.size}`, 
-        uploadedParts, // Array of {PartNumber, ETag} directly as JSON body
-        { 
-          headers: { ...headers, "Content-Type": "application/json" }
-        }
+      setStatusMsg("Assembling architecture shards...");
+      
+      const completeRes = await axios.post(
+        `${API_BASE}/upload/complete?user_id=${USER_ID}&upload_id=${upload_id}&object_name=${encodeURIComponent(object_name)}&total_size=${file.size}`, 
+        uploadedParts, 
+        { headers: { ...headers, "Content-Type": "application/json" } }
       );
 
-      if (completeRes.data.status === "Success") {
+      if (completeRes.data.status === "Success" || completeRes.data.used_storage_bytes !== undefined) {
+        setStatusMsg("Node Sync Complete!");
         setUploadStatus('success');
-        if (onUploadSuccess) onUploadSuccess(completeRes.data.used_storage_bytes);
         
-        // 🎯 FIX: Dispatch cross-component trigger event to live reload the FileListTable instantly!
+        if (onUploadSuccess && typeof completeRes.data.used_storage_bytes === "number") {
+          onUploadSuccess(completeRes.data.used_storage_bytes);
+        }
+        
         window.dispatchEvent(new Event("refresh-assets"));
-        
         setTimeout(() => setUploadStatus('idle'), 3000);
       } else {
         throw new Error(completeRes.data.error || "Failed to assemble file chunks");
@@ -158,6 +191,7 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
         type="file" 
         className="hidden" 
         onChange={handleFileInput}
+        disabled={uploadStatus === 'uploading'}
       />
 
       <div
@@ -166,7 +200,7 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         onClick={() => uploadStatus !== 'uploading' && fileInputRef.current?.click()}
-        className={`w-full p-8 rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center min-h-[180px] select-none transition-all duration-300 relative overflow-hidden ${
+        className={`w-full p-8 rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center min-h-[190px] select-none transition-all duration-300 relative overflow-hidden ${
           uploadStatus !== 'uploading' ? 'cursor-pointer' : 'cursor-wait'
         } ${
           isDragActive 
@@ -195,30 +229,48 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
             </motion.div>
           )}
 
-          {/* STATE 2: UPLOADING (CHUNK PROGRESS) */}
+          {/* STATE 2: UPLOADING (WITH PROGRESS + PAUSE TRIGGER CONTROLS) */}
           {uploadStatus === 'uploading' && (
             <motion.div 
               key="uploading"
               className="flex flex-col items-center text-center gap-3 w-full max-w-xs"
             >
-              <div className="w-10 h-10 border-2 border-t-transparent rounded-full animate-spin mb-2" style={{ borderColor: theme?.primary, borderTopColor: 'transparent' }} />
+              <div className="flex items-center justify-center relative mb-1">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" style={{ color: theme?.primary }} />
+              </div>
+              
               <div className="w-full">
                 <div className="flex justify-between items-center text-[9px] font-mono uppercase tracking-widest mb-1.5">
-                  <span className="opacity-70 truncate max-w-[120px]">{fileName}</span>
-                  <span style={{ color: theme?.primary }}>{progress}%</span>
+                  <span className="opacity-70 truncate max-w-[140px] font-bold">{statusMsg}</span>
+                  <span className="font-black text-xs" style={{ color: theme?.primary }}>{progress}%</span>
                 </div>
+                
                 {/* Visual Progress Bar */}
                 <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-white/10'}`}>
                   <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
+                    layoutId="uploadProgress"
                     className="h-full rounded-full"
-                    style={{ backgroundColor: theme?.primary }}
+                    style={{ backgroundColor: theme?.primary, width: `${progress}%` }}
                   />
                 </div>
+                
                 <p className="text-[8px] font-mono opacity-50 uppercase tracking-widest mt-2">
                   Transmitting Chunk {chunkInfo.current} of {chunkInfo.total}
                 </p>
+
+                {/* INTERACTIVE CONTROLLER ACTIONS LAYER */}
+                <button 
+                  onClick={togglePauseResume}
+                  className={`mt-3 px-4 py-1.5 rounded-xl font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5 border mx-auto transition-all active:scale-95 ${
+                    isLight ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-zinc-900 border-white/5 hover:bg-white/5 text-white'
+                  }`}
+                >
+                  {isPaused ? (
+                    <> <Play className="w-2.5 h-2.5 fill-current text-emerald-400" /> Resume Stream </>
+                  ) : (
+                    <> <Pause className="w-2.5 h-2.5 fill-current text-amber-400" /> Pause Transfer </>
+                  )}
+                </button>
               </div>
             </motion.div>
           )}
@@ -232,7 +284,7 @@ export function UploadZone({ isLight, onUploadSuccess }: UploadZoneProps) {
               <CheckCircle2 className="w-10 h-10 text-emerald-500 animate-bounce" />
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-emerald-500">Node Sync Complete</p>
-                <p className="text-[9px] font-mono opacity-60 uppercase tracking-widest mt-0.5">Chunks Assembled Successfully</p>
+                <p className="text-[9px] font-mono opacity-60 uppercase tracking-widest mt-0.5">{statusMsg}</p>
               </div>
             </motion.div>
           )}

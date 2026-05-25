@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -348,5 +349,76 @@ func HandleDeleteAsset(cfg config.Config) fiber.Handler {
 		_ = cache.AddStorageUsage(ctx, userID, -sizeToDecrement)
 
 		return c.JSON(fiber.Map{"status": "Success", "deleted_node": objectKey})
+	}
+}
+
+// 🚀 FILE MOVE / RENAME OBJECT PIPELINE HANDLER
+func HandleMoveAsset(cfg config.Config) fiber.Handler {
+	type MoveRequest struct {
+		UserID       string `json:"user_id"`
+		SrcObjectKey string `json:"src_object_key"` // e.g., "user1/folder1/file.jpg"
+		TargetFolder string `json:"target_folder"`  // e.g., "folder2" ya "" (for root)
+		FileName     string `json:"file_name"`      // e.g., "file.jpg"
+	}
+
+	return func(c *fiber.Ctx) error {
+		var req MoveRequest
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload parameters"})
+		}
+
+		if req.UserID == "" || req.SrcObjectKey == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "user_id and src_object_key are highly required"})
+		}
+
+		// New Object Name compute karo mapping ke mutabik
+		var destObjectKey string
+		if req.TargetFolder == "" {
+			destObjectKey = fmt.Sprintf("%s/%s", req.UserID, req.FileName)
+		} else {
+			destObjectKey = fmt.Sprintf("%s/%s/%s", req.UserID, strings.Trim(req.TargetFolder, "/"), req.FileName)
+		}
+
+		// Target same position par hai toh directly bypass kardo
+		if req.SrcObjectKey == destObjectKey {
+			return c.JSON(fiber.Map{"message": "Asset is already present in target node"})
+		}
+
+		ctx := c.Context()
+
+		// 🎯 CEPH STORAGE COPY OPERATION
+		// S3/MinIO natively direct "Rename" nahi support karta, humein Copy + Delete operation atomic chalana hoga
+		srcOpts := minio.CopySrcOptions{
+			Bucket: cfg.BucketName,
+			Object: req.SrcObjectKey,
+		}
+		dstOpts := minio.CopyDestOptions{
+			Bucket: cfg.BucketName,
+			Object: destObjectKey,
+		}
+
+		// Transfer asset buffer payload to new directory structure location
+		_, err := storage.Client.CopyObject(ctx, dstOpts, srcOpts)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error":   "Failed to allocate asset data shard to target node",
+				"details": err.Error(),
+			})
+		}
+
+		// Purane directory storage namespace se source file node ko terminate kardo
+		err = storage.Client.RemoveObject(ctx, cfg.BucketName, req.SrcObjectKey, minio.RemoveObjectOptions{})
+		if err != nil {
+			log.Printf("[⚠️ EXCEPTION] Copy successful but old node purge failed: %v", err)
+		}
+
+		// NOTE: Agar SQL database use kar rahe ho file listing records save karne ke liye,
+		// toh yahan database mein query update marna: UPDATE files SET object_name = destObjectKey WHERE object_name = req.SrcObjectKey
+
+		return c.JSON(fiber.Map{
+			"status":          "SUCCESS",
+			"new_object_name": destObjectKey,
+			"msg":             "Asset data shard cross-navigated successfully",
+		})
 	}
 }
