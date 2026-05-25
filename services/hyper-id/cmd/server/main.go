@@ -15,28 +15,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func globalMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("📢 [Hyper-ID] Incoming Request: %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
-
-		// 🎯 ALLOW EXPLICIT LOCALHOST DEVELOPMENT ORIGIN
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-
-		// 🎯 CRITICAL CORS FIX: Whitelisting 'X-Google-Token' to pass preflight validation check seamlessly
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Google-Token, Accept, Origin")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-		// 🎬 IMMEDIATELY INTERCEPT BROWSER PREFLIGHT OPTIONS REQUEST WITH SUCCESS CODE
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -94,7 +72,7 @@ func main() {
 	port := ":8080"
 	fmt.Printf("Hyper ID Auth Server running on http://localhost%s\n", port)
 
-	if err := http.ListenAndServe(port, globalMiddleware(mux)); err != nil {
+	if err := http.ListenAndServe(port, mux); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

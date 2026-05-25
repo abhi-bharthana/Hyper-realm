@@ -1,9 +1,19 @@
 // web-main/lib/api.ts
 
+// 🧠 Smart URL Resolver: BFF (Backend For Frontend) Pattern
+const getBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    // 🌐 BROWSER SIDE: Relative path
+    return "/api/v1";
+  }
+  // 🖥️ SERVER SIDE (SSR): Targetting new Safe Port 8088
+  return "http://127.0.0.1:8088/api/v1";
+};
+
 export const API_URLS = {
-  HUB: "http://localhost:8081/api/v1",     // Go Backend Core API mapping
-  ID: "http://localhost:8080/api/v1",      // Hyper-ID scope endpoint mapping
-  STORAGE: "http://localhost:8001/api/v1"  // 🎯 ADDED: Isolated Storage Engine Target Link
+  HUB: getBaseUrl(),     
+  ID: getBaseUrl(),      
+  STORAGE: getBaseUrl()  
 };
 
 async function fetchClient(url: string, options: RequestInit = {}) {

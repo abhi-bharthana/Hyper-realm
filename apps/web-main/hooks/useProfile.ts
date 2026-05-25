@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api, API_URLS } from "@/lib/api"; 
-import { jwtDecode } from "jwt-decode"; // 🚀 Imported to identify the current session
+import { jwtDecode } from "jwt-decode"; 
 
 export function useProfile(userId: string) {
   const [profile, setProfile] = useState<any>(null);
@@ -24,32 +24,27 @@ export function useProfile(userId: string) {
         if (token) {
           try {
             const decoded: any = jwtDecode(token);
-            // JWT token se logged-in user ka HID nikal rahe hain
             myHid = decoded.hid || decoded.sub || ""; 
           } catch (jwtErr) {
             console.error("⚠️ Token decoding failed in profile hook:", jwtErr);
           }
         }
 
-        // 🛡️ SMART ROUTING DETECTOR
-        // Agar userId blank hai ya khud ke HID ke barabar hai -> Own Profile
         const isOwnProfile = !userId || userId === myHid;
 
-        // Endpoint routing condition logic
         const endpoint = isOwnProfile
-          ? `${API_URLS.HUB}/profile`                      // 🎯 Hits GetProfileHandler (Auto-creates if missing)
-          : `${API_URLS.HUB}/profile/view?hid=${userId}`;   // 🎯 Hits GetOtherProfileHandler
+          ? `${API_URLS.HUB}/profile`                      
+          : `${API_URLS.HUB}/profile/view?hid=${userId}`;   
 
-        // Main Profile HTTP request Execution
         const profileData = await api.get(endpoint);
 
-        // Friends count fetch engine mapping
         let fCount = 0;
         const targetQueryHID = userId || myHid;
         
         if (targetQueryHID) {
           try {
-            const friendsData = await api.get(`${API_URLS.HUB}/friends?hid=${targetQueryHID}`);
+            // 🔥 CRITICAL FIX: Changed from /friends to /users/friends to match new Golang backend logic & NGINX rules
+            const friendsData = await api.get(`${API_URLS.HUB}/users/friends?hid=${targetQueryHID}`);
             fCount = friendsData.friends?.length || 0;
           } catch (err) {
             console.warn("⚠️ Could not fetch friends count:", err);
@@ -59,7 +54,6 @@ export function useProfile(userId: string) {
         setProfile(profileData);
         setFriendsCount(fCount);
         
-        // Connection status determination
         if (isOwnProfile) {
           setConnectionStatus("self");
         } else {

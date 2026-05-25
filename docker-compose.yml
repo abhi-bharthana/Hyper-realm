@@ -69,7 +69,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M # 🛡️ OPTIMIZATION: Prevents RAM exhaustion during heavy stream queries
+          memory: 256M
 
   # ==========================================
   # 4. EXABYTE SIMULATION OBJECT STORAGE (Ceph/S3 Proxy)
@@ -78,8 +78,8 @@ services:
     image: minio/minio:latest
     container_name: hyper-storage-node
     ports:
-      - "7480:9000"      # Maps host port 7480 straight to storage container internal S3 API
-      - "9001:9001"      # Web Management UI Dashboard Console (Credentials same check standard)
+      - "7480:9000"
+      - "9001:9001"
     environment:
       - MINIO_ROOT_USER=7KF1I2CYE25G2R7HWCVL        
       - MINIO_ROOT_PASSWORD=2BYAzXng14JMBfjB3ZCj6SoHlSJqqzDL8Ke5LnBE 
@@ -102,7 +102,7 @@ services:
     environment:
       - PORT=:8001
       - REDIS_HOST=hyper-redis
-      - S3_ENDPOINT=hyper-storage-node:9000 # 🎯 Direct internal network mesh mapping
+      - S3_ENDPOINT=hyper-storage-node:9000
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} 
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} 
     depends_on:
@@ -196,10 +196,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G # 🛡️ OPTIMIZATION: Prevents relational node from swallowing workstation RAM
+          memory: 1G
 
   # ==========================================
-  # 9. ENGINE ENGINE COMPONENT SUB-SYSTEMS
+  # 9. ENGINE COMPONENT SUB-SYSTEMS
   # ==========================================
   typesense:
     image: typesense/typesense:26.0
@@ -243,8 +243,27 @@ services:
     networks:
       - hyper-realm-net
 
+# ==========================================
+  # 🌐 10. API GATEWAY (NGINX - Central Routing)
   # ==========================================
-  # 10. MATRIX INFRASTRUCTURE WATCHDOGS (Telemetry Stack)
+  api-gateway:
+    image: nginx:alpine
+    container_name: hyper-api-gateway
+    ports:
+      - "8088:80" # 🔥 Safe port par shift kar diya
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - hyper-id
+      - hyper-hub
+      - storage-api
+      - hyper-search
+      - sms-service
+    networks:
+      - hyper-realm-net
+      
+  # ==========================================
+  # 11. MATRIX INFRASTRUCTURE WATCHDOGS (Telemetry Stack)
   # ==========================================
   prometheus:
     image: prom/prometheus:latest

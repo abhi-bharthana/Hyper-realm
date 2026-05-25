@@ -9,7 +9,6 @@ import (
 	"hyper-realm/storage-api/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors" // 🎯 NEW: Import CORS middleware
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
@@ -25,13 +24,6 @@ func main() {
 	app := fiber.New(fiber.Config{
 		BodyLimit: 100 * 1024 * 1024, // 100MB Max Request Size
 	})
-
-	// 🚀 CRITICAL FIX: Explicitly allowed DELETE method inside CORS configuration matrix
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:3000", // Allow Next.js frontend
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
-		AllowMethods: "GET, POST, DELETE, OPTIONS", // 🎯 FIXED: DELETE added to eliminate preflight 405/Network errors
-	}))
 
 	app.Use(logger.New())
 
