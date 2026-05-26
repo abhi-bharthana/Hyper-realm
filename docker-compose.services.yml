@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  hyper-id:
+    build:
+      context: ./services/hyper-id
+      dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-id-1
+    ports:
+      - "8080:8080"
+    depends_on:
+      hyper-db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=hyper-db
+      - DB_PORT=5432
+      - DB_USER=abhi
+      - DB_PASSWORD=Abhi@5511
+      - DB_NAME=Hyper-ID
+      - GOOGLE_CLIENT_ID=306788201596-phllg7davd9ib2vkm1adrqrrv8r6ogoi.apps.googleusercontent.com
+      - KAFKA_BROKER=kafka:9092
+    volumes:
+      - ./services/hyper-id/certs:/app/certs
+    networks:
+      - hyper-realm-net
+
+  hyper-hub:
+    build:
+      context: ./services/hyper-hub
+      dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-hub-1
+    ports:
+      - "8081:8081"
+    depends_on:
+      hyper-db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=hyper-db
+      - DB_PORT=5432
+      - DB_USER=abhi
+      - DB_PASSWORD=Abhi@5511
+      - DB_NAME=Hyper-ID
+      - KAFKA_BROKER=kafka:9092
+      - JWT_PUBLIC_KEY_PATH=/app/certs/public_key.pem
+    volumes:
+      - ./services/hyper-id/certs:/app/certs:ro
+    networks:
+      - hyper-realm-net
+
+  storage-api:
+    build:
+      context: ./services/storage-api
+      dockerfile: Dockerfile
+    container_name: hyper-realm-storage-api-1
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=:8001
+      - REDIS_HOST=hyper-redis
+      - S3_ENDPOINT=hyper-storage-node:9000
+      - KAFKA_BROKER=kafka:9092
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} 
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} 
+    depends_on:
+      - hyper-redis
+      - hyper-storage-node 
+    networks:
+      - hyper-realm-net
+
+  sms-service:
+    build:
+      context: ./services/sms-service
+      dockerfile: Dockerfile
+    container_name: hyper-realm-sms-service-1
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=:8002
+      - REDIS_URL=hyper-redis:6379
+      - KAFKA_SERVER=kafka:9092
+      - PUBLIC_KEY_PATH=/app/certs/public_key.pem
+    depends_on:
+      kafka:
+        condition: service_healthy
+      hyper-redis:
+        condition: service_started
+    volumes:
+      - ./services/hyper-id/certs:/app/certs:ro
+    networks:
+      - hyper-realm-net
+
+  hyper-search:
+    build:
+      context: ./services/hyper-search
+      dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-search-1
+    ports:
+      - "8082:8082"
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - TYPESENSE_URL=http://typesense:8108
+    depends_on:
+      kafka:
+        condition: service_healthy
+      typesense:
+        condition: service_started
+    networks:
+      - hyper-realm-net
+
+networks:
+  hyper-realm-net:
+    name: hyper-realm-net
+    external: true

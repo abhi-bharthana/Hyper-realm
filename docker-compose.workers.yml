@@ -1,0 +1,20 @@
+services:
+  vision-worker:
+    build:
+      context: ./services/hyper-workers/vision-worker
+      dockerfile: Dockerfile
+    container_name: hyper-realm-vision-worker-1
+    depends_on:
+      - kafka
+      - hyper-storage-node
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - S3_ENDPOINT=http://hyper-storage-node:9000
+      - AWS_ACCESS_KEY_ID=7KF1I2CYE25G2R7HWCVL
+      - AWS_SECRET_ACCESS_KEY=2BYAzXng14JMBfjB3ZCj6SoHlSJqqzDL8Ke5LnBE
+    networks:
+      - hyper-realm-net
+
+networks:
+  hyper-realm-net:
+    external: true
