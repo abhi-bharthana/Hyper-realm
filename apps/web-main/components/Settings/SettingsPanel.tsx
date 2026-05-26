@@ -37,7 +37,7 @@ export function SettingsPanel() {
             {/* Header */}
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black tracking-tighter uppercase italic">
-                System <span className="text-primary" style={{ color: theme?.primary }}>Node</span>
+                Settings
               </h2>
               <button onClick={toggleSettings} className={`p-2 rounded-xl transition-colors ${isLight ? 'hover:bg-slate-200' : 'hover:bg-white/5'}`}>
                 <X className="w-5 h-5" />
