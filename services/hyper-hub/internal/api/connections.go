@@ -166,3 +166,74 @@ func HandleGetFriendsList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(friends)
 }
+
+// HandleGetSentRequests: Jo requests MAINE dusro ko bhej rakhi hain aur pending hain
+func HandleGetSentRequests(w http.ResponseWriter, r *http.Request) {
+	myHID, ok := r.Context().Value(UserHIDKey).(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 🎯 JOIN: h_connections ko user_profiles se join kiya on receiver_hid
+	rows, err := db.DB.Query(`
+        SELECT c.receiver_hid::TEXT, u.nickname, COALESCE(u.rank, 'Agent') AS role, COALESCE(u.avatar_url, '') AS avatar_url, COALESCE(u.gender, 'prefer_not_to_say') AS gender
+        FROM h_connections c
+        JOIN user_profiles u ON c.receiver_hid::TEXT = u.hid::TEXT
+        WHERE c.sender_hid::TEXT = $1::TEXT AND c.status = 'pending'`, myHID)
+
+	if err != nil {
+		log.Printf("❌ [Hyper-Hub] SQL Crash in HandleGetSentRequests: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var requests []map[string]interface{}
+	for rows.Next() {
+		var hid, nickname, role, avatar, gender string
+		if err := rows.Scan(&hid, &nickname, &role, &avatar, &gender); err != nil {
+			log.Printf("⚠️ [Hyper-Hub] Row scan error: %v", err)
+			continue
+		}
+		requests = append(requests, map[string]interface{}{
+			"hid":        hid,
+			"nickname":   nickname,
+			"role":       role,
+			"avatar_url": avatar,
+			"gender":     gender,
+		})
+	}
+
+	if requests == nil {
+		requests = []map[string]interface{}{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(requests)
+}
+
+// HandleCancelRequest: Bheji hui pending request ko wapas khinchna (Delete karna)
+func HandleCancelRequest(w http.ResponseWriter, r *http.Request) {
+	senderHID := r.Context().Value(UserHIDKey).(string)
+	var req ConnectionReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid Request", http.StatusBadRequest)
+		return
+	}
+
+	// Database se pending entry uda do
+	_, err := db.DB.Exec(`
+        DELETE FROM h_connections 
+        WHERE sender_hid::TEXT = $1::TEXT AND receiver_hid::TEXT = $2::TEXT AND status = 'pending'`,
+		senderHID, req.TargetHID)
+
+	if err != nil {
+		log.Printf("❌ [Hyper-Hub] Cancel Request Failed: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Request cancelled successfully"})
+}

@@ -37,7 +37,7 @@ export function ActionBlock({
       </Button>
 
       {/* User Session Info */}
-      <Link href="/dashboard/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/5 transition-all">
+      <Link href="/profile" className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/5 transition-all">
         <User className="w-4 h-4" />
         <span className="text-[10px] font-bold uppercase hidden md:block max-w-[80px] truncate">
           {userName || "Guest"}

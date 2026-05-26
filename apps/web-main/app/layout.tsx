@@ -6,7 +6,7 @@ import { FloatingNavbar } from "@/components/Navbar/FloatingNavbar";
 import { AppWrapper } from "@/components/AppWrapper";
 import { MagicPill } from "@/components/MagicPill/MagicPill";
 import { SettingsPanel } from "@/components/Settings/SettingsPanel";
-import { DiscoverPanel } from "@/components/DiscoverPanel"; // <-- NAYA IMPORT
+import { DiscoverPanel } from "@/components/Discover/DiscoverPanel"; // <-- NAYA IMPORT
 
 const inter = Inter({ subsets: ["latin"] });
 

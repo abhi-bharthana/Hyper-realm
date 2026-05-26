@@ -88,8 +88,8 @@ export function FloatingNavbar() {
     setIsSearchOpen(false);
     setSearchQuery("");
     setResults([]);
-    // 🔙 BACK TO STABLE: Wapas dashboard wale route par set kar diya
-    router.push(`/dashboard/profile?hid=${hid}`);
+    // 🚀 NAYA CLEAN URL:
+    router.push(`/profile?hid=${hid}`);
   }, [router]);
 
   const handleChatToggle = useCallback(() => {

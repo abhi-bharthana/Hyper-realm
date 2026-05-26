@@ -18,7 +18,8 @@ export function StorageAccess() {
 
   const navigateToDrive = () => {
     toggleSettings();
-    router.push('/dashboard/drive');
+    // 🚀 FIX: Yahan se '/dashboard' hata diya, ab seedha clean URL hit karega!
+    router.push('/drive');
   };
 
   return (

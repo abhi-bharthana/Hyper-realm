@@ -182,3 +182,60 @@ func SearchUsersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
 }
+
+// 5. GetDiscoverProfilesHandler: Random profiles fetch karne ke liye (Discover UI ke liye)
+func GetDiscoverProfilesHandler(w http.ResponseWriter, r *http.Request) {
+	val := r.Context().Value(UserHIDKey)
+	hid, ok := val.(string)
+	if !ok {
+		http.Error(w, "Unauthorized: Invalid Session", http.StatusUnauthorized)
+		return
+	}
+
+	// 🎯 CORES FIX: NOT EXISTS ke sath explicit ::TEXT casting use ki hai
+	// Isse UUID vs VARCHAR ka lafda permanently khatam ho jayega
+	query := `
+		SELECT hid, nickname, COALESCE(bio, ''), COALESCE(avatar_url, ''), COALESCE(rank, 'Agent'), COALESCE(gender, 'prefer_not_to_say')
+		FROM user_profiles 
+		WHERE hid != $1
+		  AND NOT EXISTS (
+			SELECT 1 FROM h_connections 
+			WHERE (sender_hid::TEXT = $1::TEXT AND receiver_hid::TEXT = hid::TEXT)
+			   OR (receiver_hid::TEXT = $1::TEXT AND sender_hid::TEXT = hid::TEXT)
+		  )
+		ORDER BY RANDOM() 
+		LIMIT 5
+	`
+
+	rows, err := db.DB.Query(query, hid)
+	if err != nil {
+		log.Printf("❌ [Hyper-Hub] Discover DB Error: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var uHID, nickname, bio, avatar, rank, gender string
+		if err := rows.Scan(&uHID, &nickname, &bio, &avatar, &rank, &gender); err != nil {
+			log.Printf("❌ [Hyper-Hub] Row scan error: %v", err)
+			continue
+		}
+		results = append(results, map[string]interface{}{
+			"hid":        uHID,
+			"nickname":   nickname,
+			"bio":        bio,
+			"avatar_url": avatar,
+			"rank":       rank,
+			"gender":     gender,
+		})
+	}
+
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}

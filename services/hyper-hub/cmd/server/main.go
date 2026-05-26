@@ -62,6 +62,11 @@ func main() {
 	mux.Handle("/api/v1/profile/view", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetOtherProfileHandler))))
 	mux.Handle("/api/v1/search", withMetrics(http.HandlerFunc(api.SearchUsersHandler)))
 
+	// 🚀 DISCOVER ROUTE (Added for live suggestions)
+	mux.Handle("/api/v1/users/discover", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetDiscoverProfilesHandler))))
+	// 🚀 Sent Requests Management (Protected)
+	mux.Handle("/api/v1/users/requests/sent", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleGetSentRequests))))
+	mux.Handle("/api/v1/users/requests/cancel", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleCancelRequest))))
 	port := ":8081"
 	server := &http.Server{
 		Addr:    port,
