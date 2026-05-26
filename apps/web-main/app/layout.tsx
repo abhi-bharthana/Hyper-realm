@@ -4,8 +4,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { FloatingNavbar } from "@/components/Navbar/FloatingNavbar";
 import { AppWrapper } from "@/components/AppWrapper";
-import { MagicPill } from "@/components/MagicPill";
-import { SettingsPanel } from "@/components/SettingsPanel";
+import { MagicPill } from "@/components/MagicPill/MagicPill";
+import { SettingsPanel } from "@/components/Settings/SettingsPanel";
 import { DiscoverPanel } from "@/components/DiscoverPanel"; // <-- NAYA IMPORT
 
 const inter = Inter({ subsets: ["latin"] });

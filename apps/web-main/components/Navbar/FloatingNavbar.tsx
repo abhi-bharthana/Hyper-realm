@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useChatStore } from "@/store/useChatStore";
-// 1. Imports update karo
 import { api, API_URLS } from "@/lib/api";
 
 import { BrandBlock } from "./segments/BrandBlock";
@@ -51,6 +50,7 @@ export function FloatingNavbar() {
     }
   }, [pathname]);
 
+  // 🚀 FIX MAINTAINED: API Gateway routing abhi bhi safe hai
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setResults([]);
@@ -67,12 +67,10 @@ export function FloatingNavbar() {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8081/api/v1/search?q=${encodeURIComponent(searchQuery)}`, {
+        const data = await api.get(`${API_URLS.HUB}/search?q=${encodeURIComponent(searchQuery)}`, {
           signal: abortControllerRef.current?.signal
         });
-        if (!res.ok) throw new Error("Search failed");
         
-        const data = await res.json();
         setResults(data || []); 
       } catch (err: any) {
         if (err.name !== 'AbortError') {
@@ -90,6 +88,7 @@ export function FloatingNavbar() {
     setIsSearchOpen(false);
     setSearchQuery("");
     setResults([]);
+    // 🔙 BACK TO STABLE: Wapas dashboard wale route par set kar diya
     router.push(`/dashboard/profile?hid=${hid}`);
   }, [router]);
 
