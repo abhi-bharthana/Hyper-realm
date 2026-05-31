@@ -2,6 +2,10 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"hyper-realm/storage-api/internal/api"
 	"hyper-realm/storage-api/internal/cache"
@@ -30,7 +34,25 @@ func main() {
 	// 4. Inject Routes
 	api.SetupRoutes(app, cfg)
 
-	// 5. Start Server
-	log.Printf("Starting Storage Service on port %s", cfg.Port)
-	log.Fatal(app.Listen(cfg.Port))
+	// 5. Start Server asynchronously
+	go func() {
+		log.Printf("Starting Storage Service on port %s", cfg.Port)
+		if err := app.Listen(cfg.Port); err != nil {
+			log.Panicf("Storage API server error: %v", err)
+		}
+	}()
+
+	// 6. Graceful Shutdown Watcher
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Println("\nGraceful shutdown initiated for Storage API...")
+
+	// Fiber handles the context timeout internally
+	if err := app.ShutdownWithTimeout(5 * time.Second); err != nil {
+		log.Fatalf("Storage API forced to shutdown: %v", err)
+	}
+
+	log.Println("Storage API exited properly.")
 }

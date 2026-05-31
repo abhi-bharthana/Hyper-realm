@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { api, API_URLS } from '@/lib/api'; // Naya centralized API client import kiya
+import { api, API_URLS } from '@/lib/api'; 
 
 interface ThemeState {
   theme: string;
@@ -9,11 +9,23 @@ interface ThemeState {
   
   // UI Panels State
   isSettingsOpen: boolean;
-  isDiscoverOpen: boolean; // <-- NAYA: Discover panel ka state
+  isDiscoverOpen: boolean; 
   
   // Dashboard Component Visibility
   showClock: boolean;
   showNews: boolean;
+
+  // ==========================================
+  // 🎨 HYPER-CANVAS STATE (For Navbar Transformation)
+  // ==========================================
+  isCanvasMode: boolean;
+  canvasTitle: string;
+  canvasSaveStatus: string;
+  
+  // 🚀 ACTION TRIGGERS
+  forceSaveTrigger: number; 
+  forceShareTrigger: number;  // NAYA: Share button click track karne ke liye
+  forceDeleteTrigger: number; // NAYA: Delete button click track karne ke liye
   
   setTheme: (t: string) => Promise<void>;
   setPillPosition: (pos: { x: number; y: number }) => void;
@@ -21,12 +33,22 @@ interface ThemeState {
   
   // Toggles
   toggleSettings: () => void;
-  toggleDiscover: () => void; // <-- NAYA: Discover panel toggle karne ka function
+  toggleDiscover: () => void; 
   
   // Dashboard Control Actions
   setShowClock: (val: boolean) => Promise<void>;
   setShowNews: (val: boolean) => Promise<void>;
   
+  // Canvas Actions
+  setCanvasMode: (isMode: boolean) => void;
+  setCanvasTitle: (title: string) => void;
+  setCanvasSaveStatus: (status: string) => void;
+  
+  // 🚀 TRIGGER DISPATCHERS
+  triggerCanvasSave: () => void; 
+  triggerCanvasShare: () => void;  // NAYA
+  triggerCanvasDelete: () => void; // NAYA
+
   syncWithCloud: () => Promise<void>; 
 }
 
@@ -37,15 +59,23 @@ export const useThemeStore = create<ThemeState>()(
       isMagicPillVisible: true,
       pillPosition: { x: 20, y: 20 },
       isSettingsOpen: false,
-      isDiscoverOpen: false, // <-- NAYA: By default panel band rahega
-      showClock: true,  // Default: On
-      showNews: true,   // Default: On
+      isDiscoverOpen: false, 
+      showClock: true,  
+      showNews: true,   
+
+      // Canvas Defaults
+      isCanvasMode: false,
+      canvasTitle: "Untitled Node",
+      canvasSaveStatus: "Saved",
+      
+      forceSaveTrigger: 0, 
+      forceShareTrigger: 0,  // Default state 0
+      forceDeleteTrigger: 0, // Default state 0
 
       // Shared function to update cloud settings
       persistToCloud: async (updates: Partial<ThemeState>) => {
         const current = get();
         try {
-          // Token aur Headers ab 'api' client khud inject karega
           await api.post(`${API_URLS.HUB}/settings`, {
             theme: updates.theme ?? current.theme, 
             isMagicPillVisible: updates.isMagicPillVisible ?? current.isMagicPillVisible, 
@@ -86,14 +116,22 @@ export const useThemeStore = create<ThemeState>()(
         isSettingsOpen: !state.isSettingsOpen 
       })),
 
-      // <-- NAYA: Discover panel toggle logic
       toggleDiscover: () => set((state) => ({ 
         isDiscoverOpen: !state.isDiscoverOpen 
       })),
 
+      // 🚀 Canvas Setters
+      setCanvasMode: (isMode) => set({ isCanvasMode: isMode }),
+      setCanvasTitle: (title) => set({ canvasTitle: title }),
+      setCanvasSaveStatus: (status) => set({ canvasSaveStatus: status }),
+      
+      // 🚀 Action Triggers
+      triggerCanvasSave: () => set((state) => ({ forceSaveTrigger: state.forceSaveTrigger + 1 })),
+      triggerCanvasShare: () => set((state) => ({ forceShareTrigger: state.forceShareTrigger + 1 })),
+      triggerCanvasDelete: () => set((state) => ({ forceDeleteTrigger: state.forceDeleteTrigger + 1 })),
+
       syncWithCloud: async () => {
         try {
-          // Direct api.get call lagai, localstorage fetch karne ki zaroorat nahi
           const data = await api.get(`${API_URLS.HUB}/settings`);
           
           set({ 
@@ -116,8 +154,8 @@ export const useThemeStore = create<ThemeState>()(
         pillPosition: state.pillPosition,
         showClock: state.showClock,
         showNews: state.showNews
-        // NOTE: isSettingsOpen aur isDiscoverOpen ko partialize mein nahi dala
-        // Taaki page refresh hone par panels hamesha close mode (default) se start ho.
+        // NOTE: isCanvasMode, canvasTitle, triggers aadi local storage mein persist NAHI honge 
+        // taaki refresh pe ye clean state se start hon.
       }),
     }
   )

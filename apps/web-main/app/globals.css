@@ -37,3 +37,13 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* TipTap Editor Styles */
+.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  opacity: 0.3;
+}
+.ProseMirror { outline: none !important; }

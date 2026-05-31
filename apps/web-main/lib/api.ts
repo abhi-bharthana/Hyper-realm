@@ -1,10 +1,11 @@
 // web-main/lib/api.ts
 
-// 🧠 Smart URL Resolver: BFF (Backend For Frontend) Pattern
+// 🧠 Smart URL Resolver: Direct API Connection (Bypassing Next.js Proxy)
 const getBaseUrl = () => {
   if (typeof window !== "undefined") {
-    // 🌐 BROWSER SIDE: Relative path
-    return "/api/v1";
+    // 🌐 BROWSER SIDE: Hit NGINX API Gateway directly via dynamic hostname
+    const host = window.location.hostname;
+    return `http://${host}:8088/api/v1`;
   }
   // 🖥️ SERVER SIDE (SSR): Targetting new Safe Port 8088
   return "http://127.0.0.1:8088/api/v1";
@@ -12,7 +13,12 @@ const getBaseUrl = () => {
 
 export const API_URLS = {
   HUB: getBaseUrl(),     
-  ID: getBaseUrl(),      
+  
+  // 🚀 NGINX BYPASS: Direct Go Backend (8080) par hit marega Auth ke liye
+  ID: typeof window !== "undefined" 
+    ? `http://${window.location.hostname}:8080/api/v1` 
+    : "http://127.0.0.1:8080/api/v1",      
+    
   STORAGE: getBaseUrl()  
 };
 

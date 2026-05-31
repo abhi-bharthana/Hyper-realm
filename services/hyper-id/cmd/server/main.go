@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"hyper-id/internal/api"
 	"hyper-id/internal/auth"
@@ -14,6 +17,28 @@ import (
 
 	"github.com/joho/godotenv"
 )
+
+// 🚀 NAYA: Custom CORS Middleware Function
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set basic CORS Headers
+		w.Header().Set("Access-Control-Allow-Origin", "*") // Production me isko apne frontend URL se replace kar dena
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
+
+		// 🚀 THE MAGIC LINE: Yahan humne x-google-token aur baaki required headers allow kiye hain
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-google-token, x-user-hid, Accept")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+		// Browser ki Preflight (OPTIONS) request ko yahin intercept karke 200 OK de do
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Agar normal request hai, toh aage apne actual handler (Mux) ko pass kar do
+		next.ServeHTTP(w, r)
+	})
+}
 
 func main() {
 	err := godotenv.Load()
@@ -44,35 +69,44 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// 🎯 FIXED ROUTE RESOLUTION: Dynamic suffix stripping prevents edge-case mapping failures
-	mux.HandleFunc("/api/v1/auth/google", func(w http.ResponseWriter, r *http.Request) {
-		cleanPath := strings.TrimSuffix(r.URL.Path, "/")
-		if cleanPath != "/api/v1/auth/google" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error": "Endpoint route mapping invalid inside Hyper-ID"}`))
-			return
-		}
-		api.HandleGoogleLogin(w, r)
-	})
-
+	// 🎯 Pure API Routes (Auth Only)
+	mux.HandleFunc("/api/v1/auth/google", api.HandleGoogleLogin)
 	mux.HandleFunc("/api/v1/auth/onboarding", api.RequireAuth(api.HandleSetUsername))
 
-	fs := http.FileServer(http.Dir("frontend"))
+	// 🗑️ Sirf API 404 return karega
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error": "API Endpoint Not Found inside Hyper-ID"}`))
-			return
-		}
-		fs.ServeHTTP(w, r)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "Hyper-ID API Endpoint Not Found"}`))
 	})
 
 	port := ":8080"
-	fmt.Printf("Hyper ID Auth Server running on http://localhost%s\n", port)
 
-	if err := http.ListenAndServe(port, mux); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	// 🚀 NAYA: Apne mux ko corsMiddleware se wrap kar diya
+	server := &http.Server{
+		Addr:    port,
+		Handler: corsMiddleware(mux),
 	}
+
+	// ⚡ Run Server in a Goroutine
+	go func() {
+		fmt.Printf("Hyper ID Auth Server running on http://localhost%s\n", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// 🛑 Graceful Shutdown Logic
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	fmt.Println("\nGraceful shutdown initiated for Hyper-ID...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+	fmt.Println("Hyper-ID exited properly.")
 }

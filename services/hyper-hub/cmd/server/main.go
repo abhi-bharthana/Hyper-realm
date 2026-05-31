@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"hyper-hub/internal/api"
 	"hyper-hub/internal/db"
 	"hyper-hub/internal/events"
-	"log"
-	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,46 +39,56 @@ func withMetrics(next http.Handler) http.Handler {
 func main() {
 	log.Println("🚀 Initializing Hyper Hub...")
 
-	// Initialize Services
 	db.InitDB()
 	events.InitKafkaProducer()
 
 	mux := http.NewServeMux()
 
-	// Metrics (Unprotected)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	// ✅ PROTECTED ROUTES (Require Auth)
+	// Protected API Routes
 	mux.Handle("/api/v1/profile", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetProfileHandler))))
 	mux.Handle("/api/v1/profile/update", withMetrics(api.RequireAuth(http.HandlerFunc(api.UpdateProfileHandler))))
 	mux.Handle("/api/v1/settings", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleSettings))))
-
-	// 🔗 Network & Connection Routes (Protected) - YAHAN UPDATE KIYA HAI
 	mux.Handle("/api/v1/users/requests", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleGetPendingRequests))))
 	mux.Handle("/api/v1/users/requests/send", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleSendRequest))))
 	mux.Handle("/api/v1/users/friends", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleGetFriendsList))))
 	mux.Handle("/api/v1/users/requests/accept", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleAcceptRequest))))
 	mux.Handle("/api/v1/users/requests/decline", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleDeclineRequest))))
-
-	// Purana routes hata diye gaye hain ya uncomment kar sakte hain agar unki alag dependency hai
 	mux.Handle("/api/v1/friends", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetFriendsList))))
-	// mux.Handle("/api/v1/follow", withMetrics(api.RequireAuth(http.HandlerFunc(api.ToggleFollowHandler))))
 
-	// 🚀 PUBLIC ROUTE (View other profiles by HID)
+	// Public & Discover Routes
 	mux.Handle("/api/v1/profile/view", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetOtherProfileHandler))))
 	mux.Handle("/api/v1/search", withMetrics(http.HandlerFunc(api.SearchUsersHandler)))
-
-	// 🚀 DISCOVER ROUTE (Added for live suggestions)
 	mux.Handle("/api/v1/users/discover", withMetrics(api.RequireAuth(http.HandlerFunc(api.GetDiscoverProfilesHandler))))
-	// 🚀 Sent Requests Management (Protected)
 	mux.Handle("/api/v1/users/requests/sent", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleGetSentRequests))))
 	mux.Handle("/api/v1/users/requests/cancel", withMetrics(api.RequireAuth(http.HandlerFunc(api.HandleCancelRequest))))
+
 	port := ":8081"
 	server := &http.Server{
 		Addr:    port,
 		Handler: mux,
 	}
 
-	log.Printf("⚡ Hyper Hub Server starting on %s", port)
-	log.Fatal(server.ListenAndServe())
+	// ⚡ Run Server in a Goroutine
+	go func() {
+		log.Printf("⚡ Hyper Hub Server starting on %s", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// 🛑 Graceful Shutdown Logic
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Println("\nGraceful shutdown initiated for Hyper Hub...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+	log.Println("Hyper-Hub exited properly.")
 }

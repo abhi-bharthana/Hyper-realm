@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { useThemeStore } from "@/store/useThemeStore";
 import { Grid, List, Search } from "lucide-react";
 
+// Components 
 import { StorageStats } from "./segments/StorageStats";
 import { FileListTable } from "./segments/FileListTable";
 import { UploadZone } from "./segments/UploadZone"; 
+import { NotesStorageCard } from "./segments/NotesStorageCard"; // 🚀 NAYA IMPORT
 
 export function DriveDashboard() {
   const { theme } = useThemeStore();
-  const isLight = theme === 'light-verdant';
+  const isLight = theme === 'light-verdant' || theme === 'light';
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,17 +35,10 @@ export function DriveDashboard() {
   };
 
   return (
-    /* 🎯 CRITICAL BYPASS GRID: 
-      Using a viewport-breakout matrix (`w-screen` combined with negative margins).
-      This completely shatters any parent constraints (like max-w-6xl) from layout.tsx 
-      and pulls the layout edge-to-edge natively into the monitor frame.
-    */
     <div className={`relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] pt-4 pb-12 px-6 md:px-12 transition-colors duration-500 flex flex-col items-center bg-transparent`}>
       
-      {/* 🚀 BOUNDLESS CONTENT INNER ENGINE */}
       <div className="w-full max-w-[96vw] flex flex-col gap-5">
         
-        {/* DRIVE OPERATIONS BAR - Snug fit right underneath the Navbar */}
         <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 px-2 mt-4">
           <div>
             <h1 className="text-3xl font-black tracking-tighter uppercase italic flex items-center gap-3">
@@ -55,21 +50,23 @@ export function DriveDashboard() {
           </div>
         </div>
 
-        {/* 📊 CORE WORKSPACE PIPELINE GRID */}
-        {/* Full horizontal layout allocation spanning edge to edge smoothly */}
         <div className="w-full grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
           
-          {/* LEFT COLUMN: Storage Upload Zone + Analytics Metrics */}
+          {/* 🚀 LEFT COLUMN: Storage Analytics Panel */}
           <div className="lg:col-span-1 flex flex-col gap-5 w-full sticky top-24">
             <UploadZone 
               isLight={isLight} 
               onUploadSuccess={handleUploadSuccess} 
             />
             
+            {/* Ceph Storage Engine Stats */}
             <StorageStats 
               isLight={isLight} 
               customUsedBytes={usedStorageBytes} 
             />
+
+            {/* 🚀 NAYA: Postgres Canvas Notes Storage Stats */}
+            <NotesStorageCard isLight={isLight} />
           </div>
 
           {/* RIGHT COLUMN: Directory Browsing Console */}
@@ -77,10 +74,8 @@ export function DriveDashboard() {
             isLight ? 'bg-white border-slate-200/90 shadow-md shadow-slate-100/50' : 'bg-white/[0.01] border-white/5 backdrop-blur-2xl'
           }`}>
             
-            {/* Grid View & Filter Control Bar */}
             <div className={`flex justify-between items-center pb-4 border-b mb-6 shrink-0 ${isLight ? 'border-slate-100' : 'border-white/5'}`}>
               
-              {/* Embedded Search Box Input */}
               <div className={`flex items-center gap-3 px-4 py-2 rounded-full border w-full max-w-sm transition-all ${
                 isLight ? 'bg-slate-50 border-slate-200 focus-within:border-slate-400/80 text-slate-900' : 'bg-black/25 border-white/5 focus-within:border-white/20 text-white'
               }`}>
@@ -94,7 +89,6 @@ export function DriveDashboard() {
                 />
               </div>
 
-              {/* Layout Toggles */}
               <div className="flex items-center gap-1.5">
                 <button 
                   onClick={() => setViewMode('grid')}
@@ -113,7 +107,6 @@ export function DriveDashboard() {
               </div>
             </div>
 
-            {/* Dynamic Directories Allocation Display */}
             <div className="w-full flex-1 flex flex-col justify-start">
               <FileListTable isLight={isLight} viewMode={viewMode} searchQuery={searchQuery} />
             </div>

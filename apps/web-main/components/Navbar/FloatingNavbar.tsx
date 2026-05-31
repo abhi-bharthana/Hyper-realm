@@ -6,15 +6,22 @@ import { useThemeStore } from "@/store/useThemeStore";
 import { useChatStore } from "@/store/useChatStore";
 import { api, API_URLS } from "@/lib/api";
 
+// Sub-components (Segments)
 import { BrandBlock } from "./segments/BrandBlock";
 import { SearchBlock } from "./segments/SearchBlock";
 import { ActionBlock } from "./segments/ActionBlock";
+import { CanvasBlock } from "./segments/CanvasBlock"; // 🚀 Naya Import
 
 export function FloatingNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   
-  const { theme, toggleSettings, toggleDiscover } = useThemeStore(); 
+  // 🚀 Canvas states ko store se pull kar liya
+  const { 
+    theme, toggleSettings, toggleDiscover, 
+    isCanvasMode, canvasTitle, canvasSaveStatus, setCanvasTitle 
+  } = useThemeStore(); 
+  
   const { mode, setMode, openChat, activeReceiverId } = useChatStore();
   
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -50,7 +57,7 @@ export function FloatingNavbar() {
     }
   }, [pathname]);
 
-  // 🚀 FIX MAINTAINED: API Gateway routing abhi bhi safe hai
+  // Search Logic (API routing to Go Backend)
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setResults([]);
@@ -67,15 +74,12 @@ export function FloatingNavbar() {
 
     const timer = setTimeout(async () => {
       try {
-        const data = await api.get(`${API_URLS.HUB}/search?q=${encodeURIComponent(searchQuery)}`, {
+        const data = await api.get(`${API_URLS.HUB}/search/flash?q=${encodeURIComponent(searchQuery)}`, {
           signal: abortControllerRef.current?.signal
         });
-        
         setResults(data || []); 
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error("Search API failed:", err);
-        }
+        if (err.name !== 'AbortError') console.error("Search API failed:", err);
       } finally {
         setIsLoading(false);
       }
@@ -88,7 +92,6 @@ export function FloatingNavbar() {
     setIsSearchOpen(false);
     setSearchQuery("");
     setResults([]);
-    // 🚀 NAYA CLEAN URL:
     router.push(`/profile?hid=${hid}`);
   }, [router]);
 
@@ -105,11 +108,8 @@ export function FloatingNavbar() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        closeSearch();
-      }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) closeSearch();
     };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeSearch();
     };
@@ -126,14 +126,29 @@ export function FloatingNavbar() {
 
   if (hiddenPages.includes(pathname)) return null;
 
+  // 🚀 Dynamic width calculate krr rahe hain based on mode
+  const navWidth = isCanvasMode 
+    ? 'md:w-[700px] w-[calc(100vw-32px)]' 
+    : isSearchOpen 
+      ? 'md:w-[460px] w-[calc(100vw-32px)]' 
+      : 'md:w-[580px] w-[calc(100vw-32px)]';
+
   return (
     <nav 
       ref={searchRef}
       className={`fixed top-4 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-50 flex items-center justify-between gap-4 px-5 py-2 rounded-full border backdrop-blur-xl transition-all duration-500 ease-in-out
-      ${isLight ? 'bg-white/70 border-slate-200 shadow-lg text-slate-900' : 'bg-black/40 border-white/10 shadow-[0_0_30px_rgba(var(--primary),0.05)] text-white'} 
-      ${isSearchOpen ? 'md:w-[460px] w-[calc(100vw-32px)]' : 'md:w-[580px] w-[calc(100vw-32px)]'}`}
+      ${isLight ? 'bg-white/80 border-slate-200 shadow-lg text-slate-900' : 'bg-black/60 border-white/10 shadow-[0_0_30px_rgba(var(--primary),0.05)] text-white'} 
+      ${navWidth}`}
     >
-      {isSearchOpen ? (
+      {/* 🚀 Render Block Swapping */}
+      {isCanvasMode ? (
+        <CanvasBlock 
+          title={canvasTitle}
+          setTitle={setCanvasTitle}
+          saveStatus={canvasSaveStatus}
+          isLight={isLight}
+        />
+      ) : isSearchOpen ? (
         <SearchBlock 
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
