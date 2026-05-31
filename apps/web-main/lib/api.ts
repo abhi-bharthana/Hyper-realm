@@ -120,7 +120,7 @@ export const getAssetTags = async (objectKey: string): Promise<string[]> => {
 // 🎯 Fetch dynamic audit mutation traces (Global stack or targeted object key filter)
 export const fetchAuditFootprints = async (userId: string, objectKey?: string): Promise<any[]> => {
   try {
-    let url = `${API_URLS.STORAGE}/audit/footprints?user_id=${encodeURIComponent(userId)}`;
+    let url = `${API_URLS.STORAGE}/storage/audit/footprints?user_id=${encodeURIComponent(userId)}`;
     if (objectKey) {
       url += `&object_key=${encodeURIComponent(objectKey)}`;
     }

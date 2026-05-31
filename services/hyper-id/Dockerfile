@@ -1,5 +1,5 @@
 # Build Stage (Switched to Debian Bookworm for CGO & Kafka support)
-FROM golang:1.26-bookworm AS builder
+FROM golang:1.25-bookworm AS builder
 WORKDIR /app
 
 # Download dependencies

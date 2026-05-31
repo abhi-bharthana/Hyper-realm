@@ -1,7 +1,7 @@
 "use client";
-
-// 🚀 FIX: Wapas Standard Import laga diya hai
-import { useEditor, EditorContent, BubbleMenu, FloatingMenu } from '@tiptap/react';
+// ✅ Naya Import (Tiptap 3.x ke liye)
+import { useEditor, EditorContent } from '@tiptap/react';
+import { BubbleMenu, FloatingMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useEffect } from 'react';

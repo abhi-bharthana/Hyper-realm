@@ -1,6 +1,6 @@
 module hyper-search
 
-go 1.26.2
+go 1.25.0
 
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.14.1

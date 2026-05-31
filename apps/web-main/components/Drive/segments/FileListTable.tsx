@@ -1,21 +1,67 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { api, API_URLS } from "@/lib/api"; 
+import { api } from "@/lib/api"; 
 import { useThemeStore } from "@/store/useThemeStore";
 
 import { NavigationHeader } from "./NavigationHeader";
 import { DirectoryCards } from "./DirectoryCards";
 import { CreateFolderModal } from "./CreateFolderModal";
-import { PreviewModal } from "./PreviewModal";
 import { MoveFolderModal } from "./MoveFolderModal";
 import { DetailsPanel } from "./DetailsPanel";
 import { ShareModal } from "./ShareModal";
 
-// 🎯 FIXED PATHS & CASING: Mapping modules directly to file-table-modules with strict uppercase configurations
+// 🚀 NAYA IMPORT: Apna naya Universal Preview System import kiya hai
+import { UniversalPreview } from "../../Preview/UniversalPreview"; 
+
 import { FileListTableProps } from "./file-table-modules/types";
 import { useDriveActions } from "./file-table-modules/useDriveActions";
-import { FileExplorerView } from "./file-table-modules/FileExplorerView"; // Strict Capital 'F'
+import { FileExplorerView } from "./file-table-modules/FileExplorerView"; 
+
+// MIME Type Helper in case backend backend miss kar de
+const getMimeTypeFromExt = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+
+  const mimeMap: Record<string, string> = {
+    // 🖼️ Graphics & Images
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+    ico: 'image/x-icon', bmp: 'image/bmp', tiff: 'image/tiff',
+    
+    // 🎬 Cinematic & Video Shards
+    mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg',
+    mov: 'video/quicktime', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
+    wmv: 'video/x-ms-wmv', flv: 'video/x-flv', m3u8: 'application/x-mpegURL',
+    
+    // 🎵 Audio & Acoustics (Lossless & Standard)
+    mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac',
+    m4a: 'audio/mp4', aac: 'audio/aac', oga: 'audio/ogg',
+
+    // 📄 Docs & Workspaces
+    pdf: 'application/pdf',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    rtf: 'application/rtf', csv: 'text/csv',
+
+    // 💻 FusionCore & Dev Files 
+    txt: 'text/plain', md: 'text/markdown', html: 'text/html', css: 'text/css', 
+    js: 'text/javascript', ts: 'application/typescript', tsx: 'text/tsx',
+    json: 'application/json', xml: 'application/xml', yaml: 'text/yaml', yml: 'text/yaml',
+    py: 'text/x-python', go: 'text/x-go', c: 'text/x-c', cpp: 'text/x-c++', 
+    java: 'text/x-java-source', rs: 'text/rust', sh: 'application/x-sh',
+
+    // 📦 Archives & Clusters
+    zip: 'application/zip', rar: 'application/x-rar-compressed',
+    '7z': 'application/x-7z-compressed', tar: 'application/x-tar', gz: 'application/gzip',
+
+    // 🧊 3D Models (For Neural Canvas later)
+    obj: 'model/obj', gltf: 'model/gltf+json', glb: 'model/gltf-binary'
+  };
+
+  // Agar extension map mein mil gaya toh wo do, warna default octet-stream (unknown binary)
+  return mimeMap[ext] || 'application/octet-stream';
+};
 
 export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
   const { theme } = useThemeStore();
@@ -25,14 +71,10 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
   const [currentFolder, setCurrentFolder] = useState<string>(""); 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const [previewFile, setPreviewFile] = useState<any>(null);
-  const [codeContent, setCodeContent] = useState<string>("");
-  const [loadingCode, setLoadingCode] = useState(false);
+  // 🚀 NAYA STATE: Unified preview file state
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; mimeType: string } | null>(null);
 
   const USER_ID = "abhishek-babu-node"; // (Mocked for now)
-  
-  // 🚀 STRICT FIX: Removed (API_URLS as any).STORAGE to bypass corrupted URLs.
-  // Ab URL ekdum perfect '/api/v1/storage' banke gateway (8088) tak jayega.
   const API_BASE = "/api/v1/storage"; 
   const MINIO_GATEWAY = "http://localhost:7480/hyper-users-data";
 
@@ -52,7 +94,6 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
     }
   }, [currentFolder]);
 
-  // Hooking the separated action triggers controller
   const actions = useDriveActions(USER_ID, API_BASE, currentFolder, loadClusterTopology);
   const filteredFiles = useMemo(() => files.filter(f => f.file_name.toLowerCase().includes(searchQuery.toLowerCase())), [files, searchQuery]);
 
@@ -90,27 +131,16 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
     } catch (err) { console.error(err); loadClusterTopology(); }
   }, [actions, loadClusterTopology]);
 
-  const handleOpenPreview = useCallback(async (file: any) => {
-    setPreviewFile(file);
-    const ext = file.file_name.split('.').pop()?.toLowerCase() || "";
-    if (["json", "js", "ts", "tsx", "go", "py", "yaml", "md", "txt"].includes(ext)) {
-      try {
-        setLoadingCode(true);
-        const res = await fetch(`${MINIO_GATEWAY}/${file.object_name}`);
-        const textData = await res.text();
-        
-        try {
-          const parsed = JSON.parse(textData);
-          setCodeContent(JSON.stringify(parsed, null, 2));
-        } catch {
-          setCodeContent(textData);
-        }
-      } catch (err) { 
-        setCodeContent("Failed to stream content."); 
-      } finally { 
-        setLoadingCode(false); 
-      }
-    }
+  // 🚀 NAYA: Cleaned-up Preview Trigger Logic
+  const handleOpenPreview = useCallback((file: any) => {
+    const fileUrl = `${MINIO_GATEWAY}/${file.object_name}`;
+    const mimeType = file.content_type || getMimeTypeFromExt(file.file_name);
+
+    setPreviewFile({
+      url: fileUrl,
+      name: file.file_name,
+      mimeType: mimeType
+    });
   }, []);
 
   useEffect(() => { loadClusterTopology(); }, [currentFolder, loadClusterTopology]);
@@ -144,10 +174,18 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
         />
       )}
 
+      {/* Basic Modals */}
       <CreateFolderModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateFolder} isLight={isLight} />
-      <PreviewModal file={previewFile} codeContent={codeContent} loadingCode={loadingCode} onClose={() => { setPreviewFile(null); setCodeContent(""); }} gateway={MINIO_GATEWAY} primaryColor={theme?.primary} />
       <MoveFolderModal isOpen={actions.showMoveModal} onClose={() => { actions.setShowMoveModal(false); actions.setActiveMoveFile(null); actions.setActiveDirTarget(null); actions.setIsFolderMoveMode(false); actions.setIsFileCopyMode(false); }} directories={directories} currentFolder={currentFolder} onConfirmMove={actions.handleUniversalRelocationCommit} isLight={isLight} />
       <ShareModal isOpen={actions.showShareModal} onClose={() => { actions.setShowShareModal(false); actions.setActiveShareFile(null); }} file={actions.activeShareFile} apiBase={API_BASE} isLight={isLight} />
+      
+      {/* 🚀 NAYA: Apna Brand-new Universal Preview Inject Kar Diya Yahan */}
+      <UniversalPreview 
+        isOpen={!!previewFile}
+        file={previewFile || { url: '', name: '', mimeType: '' }}
+        onClose={() => setPreviewFile(null)}
+      />
+      
     </div>
   );
 }

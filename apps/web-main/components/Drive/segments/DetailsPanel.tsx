@@ -2,7 +2,9 @@
 
 import { X, Calendar, HardDrive, Plus, Clock, RefreshCw, GitCommit, Move, Copy, Trash2, Edit3, Share2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+
+// 🚀 FIX: Axios hata diya aur apna native API wrapper import kiya
+import { fetchAuditFootprints } from "@/lib/api"; // Agar path error aaye toh "../../../lib/api" use kar lena
 
 // Activity Footprint Structure Interface Mappings
 interface FootprintNode {
@@ -28,17 +30,15 @@ export function DetailsPanel({ file, onClose, isLight, onAddTag, onRemoveTag, ta
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const USER_ID = "abhishek-babu-node";
-  const API_BASE = "http://localhost:8001/api/v1/storage";
 
   // 🎯 TELEMETRY LAYER: Fetch asset specific historical logs from storage audit engine
   const loadAssetTimelineLogs = useCallback(async () => {
     if (!file?.object_name) return;
     setLoadingHistory(true);
     try {
-      const response = await axios.get(
-        `${API_BASE}/audit/footprints?user_id=${encodeURIComponent(USER_ID)}&object_key=${encodeURIComponent(file.object_name)}`
-      );
-      setHistory(response.data.footprints || []);
+      // 🚀 FIX: Yahan ab hum apni API call kar rahe hain jo auth aur port khud sambhal legi
+      const footprints = await fetchAuditFootprints(USER_ID, file.object_name);
+      setHistory(footprints || []);
     } catch (err) {
       console.error("Failed to stream asset telemetry context:", err);
       setHistory([]);
