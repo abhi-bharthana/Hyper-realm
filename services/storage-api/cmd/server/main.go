@@ -13,7 +13,6 @@ import (
 	"hyper-realm/storage-api/internal/storage"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors" // 🚀 Added CORS
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
@@ -27,15 +26,13 @@ func main() {
 
 	// 3. Setup Fiber Framework
 	app := fiber.New(fiber.Config{
-		// 🚀 FIX: Badha kar 1GB kiya (1024 * 1024 * 1024)
+		// 🚀 FIX: 1GB body limit for internal operations
 		BodyLimit: 1024 * 1024 * 1024,
 	})
 
-	// 🚀 FIX: Enable CORS so your Next.js frontend can talk to the API
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
-	}))
+	// 🚨 REMOVED FIBER CORS MIDDLEWARE HERE 🚨
+	// NGINX API Gateway is already handling CORS globally for us.
+	// Adding it here was creating a "Double Header" (*, *) which crashed the browser.
 
 	app.Use(logger.New())
 

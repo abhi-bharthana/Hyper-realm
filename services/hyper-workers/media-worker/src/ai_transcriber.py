@@ -31,7 +31,8 @@ def process_auto_captions(video_path, output_dir):
     print(f"🎙️ [AI ENGINE] Extracting Audio & Generating Captions for {video_path}...")
     
     # Run Whisper Transcriber
-    result = model.transcribe(video_path)
+    # 🚀 FIX: 'translate' task will auto-detect ANY language and generate English VTT
+    result = model.transcribe(video_path, task="translate")
     
     vtt_text = generate_vtt(result["segments"])
     

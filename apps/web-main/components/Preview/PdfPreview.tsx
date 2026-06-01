@@ -3,23 +3,19 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PreviewHeader } from './PreviewHeader';
-import { ZoomIn, ZoomOut, Info, Download, Maximize, Minimize, Loader2, ImageIcon, HardDrive, Calendar } from 'lucide-react';
+import { Info, Download, Maximize, Minimize, Loader2, FileText, HardDrive, Calendar } from 'lucide-react';
 
-interface ImagePreviewProps {
+interface PdfPreviewProps {
   url: string;
   fileName: string;
   file?: any; 
   onClose: () => void;
 }
 
-export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps) {
-  const [scale, setScale] = useState(1);
+export function PdfPreview({ url, fileName, file, onClose }: PdfPreviewProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  // 🚀 Orientation engine tracking state
-  const [orientation, setOrientation] = useState<'landscape' | 'portrait' | 'square'>('landscape');
   
   const [isIdle, setIsIdle] = useState(false); 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,27 +63,6 @@ export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps
     }
   };
 
-  // ==========================================
-  // 🚀 DYNAMIC IMAGE RENDERED CALCULATOR
-  // ==========================================
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth, naturalHeight } = e.currentTarget;
-    
-    if (naturalWidth > naturalHeight) {
-      setOrientation('landscape');
-    } else if (naturalHeight > naturalWidth) {
-      setOrientation('portrait');
-    } else {
-      setOrientation('square');
-    }
-    
-    setIsLoading(false);
-  };
-
-  const handleZoomIn = () => setScale(s => Math.min(s + 0.3, 5)); 
-  const handleZoomOut = () => setScale(s => Math.max(s - 0.3, 0.5)); 
-  const resetZoom = () => setScale(1);
-
   const formatBytes = (bytes: number = 0, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -99,27 +74,9 @@ export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   }) : 'Unknown Date';
 
-  // 🚀 DYNAMIC LAYOUT ENGINE (Tailwind Shard)
-  const getContainerClasses = () => {
-    // 👑 FIX 1: Enforced strict flex grid alignments inside absolute hardware viewport bounds
-    if (isFullscreen) return 'w-full h-full rounded-none bg-transparent flex items-center justify-center';
-    
-    const baseClass = 'relative flex items-center justify-center overflow-hidden transition-all duration-500 ease-out rounded-[2.5rem] bg-black/40 shadow-[0_0_120px_rgba(0,0,0,0.5)] ring-1 ring-white/10 w-fit h-fit max-h-[calc(100vh-220px)]';
-    
-    switch (orientation) {
-      case 'portrait':
-        return `${baseClass} max-w-[85vw] sm:max-w-md md:max-w-lg`;
-      case 'square':
-        return `${baseClass} max-w-[90vw] sm:max-w-xl md:max-w-2xl`;
-      case 'landscape':
-      default:
-        return `${baseClass} max-w-[92vw] lg:max-w-4xl`;
-    }
-  };
-
   return (
     <>
-      {/* AUTO-HIDE HEADER BAR */}
+      {/* 🚀 AUTO-HIDE HEADER */}
       <div className={`fixed top-0 left-0 w-full z-[100] pointer-events-none transition-opacity duration-700 ${isIdle ? 'opacity-0' : 'opacity-100'}`}>
          <div className="pointer-events-auto">
              {!isFullscreen && <PreviewHeader fileName={fileName} onClose={onClose} />}
@@ -128,81 +85,68 @@ export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps
       
       <div 
         className={`relative w-full h-full flex items-center justify-center transition-colors duration-500 select-none outline-none ${
-          isFullscreen ? 'bg-black p-0' : 'p-6 md:p-12'
+          isFullscreen ? 'bg-black p-0' : 'p-4 md:p-8'
         }`}
-        onWheel={(e) => {
-            const zoomDelta = e.deltaY * -0.002; 
-            setScale(s => Math.min(Math.max(s + zoomDelta, 0.5), 5));
-        }}
       >
         
-        {/* 👑 ADAPTIVE CONTAINER BOX */}
-        <div ref={containerRef} className={getContainerClasses()}>
+        {/* 🚀 THE DOCUMENT FRAME */}
+        <div 
+          ref={containerRef}
+          className={`relative flex items-center justify-center overflow-hidden transition-all duration-700 ${
+            isFullscreen 
+              ? 'w-full h-full rounded-none bg-[#323639]' 
+              : 'w-full h-full max-w-5xl rounded-[2.5rem] bg-[#323639] shadow-[0_0_120px_rgba(0,0,0,0.5)] ring-1 ring-white/10'
+          }`}
+          style={!isFullscreen ? { 
+            marginTop: '30px',
+            maxHeight: 'calc(100vh - 120px)' 
+          } : {}}
+        >
           
           {isLoading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center flex-col gap-4 pointer-events-none bg-black/20 backdrop-blur-sm">
+            <div className="absolute inset-0 z-10 flex items-center justify-center flex-col gap-4 pointer-events-none bg-black/50 backdrop-blur-sm">
                <div className="relative flex items-center justify-center">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full"></div>
                </div>
-               <span className="text-xs font-mono uppercase tracking-[0.2em] text-white/50">Rendering Pixels</span>
+               <span className="text-xs font-mono uppercase tracking-[0.2em] text-white/50">Loading Document</span>
             </div>
           )}
 
-          <motion.img
-            src={url}
-            alt={fileName}
-            drag={scale > 1} 
-            dragConstraints={containerRef} 
-            dragElastic={0.15} 
-            
-            initial={{ opacity: 0, filter: 'blur(10px)' }}
-            animate={{ 
-                scale: scale, 
-                opacity: isLoading ? 0 : 1, 
-                filter: isLoading ? 'blur(10px)' : 'blur(0px)' 
-            }}
-            transition={{ 
-                scale: { type: "spring", stiffness: 400, damping: 40, mass: 0.5 }, 
-                opacity: { duration: 0.5 },
-                filter: { duration: 0.5 }
-            }}
-            
-            onLoad={handleImageLoad}
-            // 👑 FIX 2: Swapped fractional dimensions with safe bounds constraint mappings to respect flex calculations
-            className="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing"
+          {/* 🚀 BROWSER NATIVE PDF ENGINE */}
+          <iframe 
+            src={`${url}#view=FitH`} 
+            title={fileName}
+            onLoad={() => setIsLoading(false)}
+            className={`w-full h-full transition-opacity duration-700 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+            style={{ border: 'none' }}
           />
         </div>
 
-        {/* THE "HYPER-LENS" FLOATING TOOLBAR */}
+        {/* 🚀 THE "HYPER-LENS" FLOATING TOOLBAR */}
         <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/60 backdrop-blur-2xl px-3 py-2 rounded-[2rem] border border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.7)] transition-all duration-700 ${
-            isLoading || isIdle 
+            isIdle 
             ? 'opacity-0 translate-y-10 pointer-events-none' 
             : 'opacity-100 translate-y-0 hover:bg-black/80 hover:border-white/20 hover:scale-105'
         }`}>
-            <button onClick={handleZoomOut} className="p-2.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition active:scale-90" title="Zoom Out">
-                <ZoomOut className="w-4 h-4" />
-            </button>
-            <div className="w-px h-5 bg-white/10 mx-1"></div>
-            <button onClick={resetZoom} className="px-3 py-1.5 rounded-full text-white/90 hover:bg-white/10 transition font-mono text-[10px] uppercase tracking-widest font-bold active:scale-95" title="Reset Zoom">
-                {Math.round(scale * 100)}%
-            </button>
-            <div className="w-px h-5 bg-white/10 mx-1"></div>
-            <button onClick={handleZoomIn} className="p-2.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition active:scale-90" title="Zoom In">
-                <ZoomIn className="w-4 h-4" />
-            </button>
-            <div className="w-px h-5 bg-white/10 mx-1"></div>
             <button onClick={toggleFullScreen} className="p-2.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition active:scale-90" title="Toggle Fullscreen">
                 {isFullscreen ? <Minimize className="w-4 h-4 text-primary" /> : <Maximize className="w-4 h-4" />}
             </button>
+
             <div className="w-px h-5 bg-white/10 mx-1"></div>
-            <button onClick={() => setShowInfo(!showInfo)} className={`p-2.5 rounded-full transition active:scale-90 ${showInfo ? 'text-primary bg-primary/20' : 'text-white/70 hover:text-white hover:bg-white/10'}`} title="Image Metadata">
+            
+            <button 
+                onClick={() => setShowInfo(!showInfo)} 
+                className={`p-2.5 rounded-full transition active:scale-90 ${showInfo ? 'text-primary bg-primary/20' : 'text-white/70 hover:text-white hover:bg-white/10'}`} 
+                title="Document Metadata"
+            >
                 <Info className="w-4 h-4" />
             </button>
         </div>
 
-        {/* EXIF / METADATA PANEL */}
+        {/* 🚀 METADATA PANEL */}
         <AnimatePresence>
-            {showInfo && !isLoading && (
+            {showInfo && (
                 <motion.div
                     initial={{ opacity: 0, x: 20, scale: 0.95 }}
                     animate={{ opacity: 1, x: 0, scale: 1 }}
@@ -212,15 +156,17 @@ export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps
                       isFullscreen ? 'top-10' : 'top-24'
                     }`}
                 >
-                    <h3 className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em] mb-4 border-b border-white/10 pb-3">Asset Intelligence</h3>
+                    <h3 className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em] mb-4 border-b border-white/10 pb-3">Document Intelligence</h3>
+                    
                     <div className="flex flex-col gap-4">
                         <div className="flex gap-3 items-start">
-                            <div className="p-2 rounded-xl bg-white/5 border border-white/5"><ImageIcon className="w-4 h-4 text-emerald-400" /></div>
+                            <div className="p-2 rounded-xl bg-white/5 border border-white/5"><FileText className="w-4 h-4 text-red-400" /></div>
                             <div className="overflow-hidden w-full">
                                 <p className="text-white/50 text-[9px] uppercase tracking-widest font-mono">Filename</p>
                                 <p className="text-white/90 text-xs font-medium truncate" title={fileName}>{fileName}</p>
                             </div>
                         </div>
+
                         <div className="flex gap-3 items-start">
                             <div className="p-2 rounded-xl bg-white/5 border border-white/5"><HardDrive className="w-4 h-4 text-blue-400" /></div>
                             <div>
@@ -228,6 +174,7 @@ export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps
                                 <p className="text-white/90 text-xs font-medium">{formatBytes(file?.size)}</p>
                             </div>
                         </div>
+
                         <div className="flex gap-3 items-start">
                             <div className="p-2 rounded-xl bg-white/5 border border-white/5"><Calendar className="w-4 h-4 text-purple-400" /></div>
                             <div>
@@ -236,8 +183,14 @@ export function ImagePreview({ url, fileName, file, onClose }: ImagePreviewProps
                             </div>
                         </div>
                     </div>
-                    <a href={url} download={fileName} target="_blank" className="mt-6 w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-3 rounded-xl transition-all active:scale-95">
-                        <Download className="w-4 h-4" /> Download Original
+
+                    <a 
+                        href={url} 
+                        download={fileName} 
+                        target="_blank"
+                        className="mt-6 w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold py-3 rounded-xl transition-all active:scale-95"
+                    >
+                        <Download className="w-4 h-4" /> Download Document
                     </a>
                 </motion.div>
             )}

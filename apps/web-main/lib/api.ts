@@ -73,6 +73,24 @@ export const api = {
     return res.json();
   },
 
+  // 🚀 NAYA: DELETE method add kar diya hai
+  delete: async (url: string, options?: RequestInit) => {
+    const res = await fetchClient(url, { ...options, method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  // 🚀 NAYA: PUT method for future updates
+  put: async (url: string, body?: any, options?: RequestInit) => {
+    const res = await fetchClient(url, { 
+      ...options, 
+      method: "PUT", 
+      body: body ? JSON.stringify(body) : undefined 
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
   raw: fetchClient
 };
 

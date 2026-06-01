@@ -18,48 +18,34 @@ import { FileListTableProps } from "./file-table-modules/types";
 import { useDriveActions } from "./file-table-modules/useDriveActions";
 import { FileExplorerView } from "./file-table-modules/FileExplorerView"; 
 
-// MIME Type Helper in case backend backend miss kar de
+// MIME Type Helper
 const getMimeTypeFromExt = (filename: string): string => {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
 
   const mimeMap: Record<string, string> = {
-    // 🖼️ Graphics & Images
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
     gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
     ico: 'image/x-icon', bmp: 'image/bmp', tiff: 'image/tiff',
-    
-    // 🎬 Cinematic & Video Shards
     mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg',
     mov: 'video/quicktime', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
     wmv: 'video/x-ms-wmv', flv: 'video/x-flv', m3u8: 'application/x-mpegURL',
-    
-    // 🎵 Audio & Acoustics (Lossless & Standard)
     mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac',
     m4a: 'audio/mp4', aac: 'audio/aac', oga: 'audio/ogg',
-
-    // 📄 Docs & Workspaces
     pdf: 'application/pdf',
     doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     rtf: 'application/rtf', csv: 'text/csv',
-
-    // 💻 FusionCore & Dev Files 
     txt: 'text/plain', md: 'text/markdown', html: 'text/html', css: 'text/css', 
     js: 'text/javascript', ts: 'application/typescript', tsx: 'text/tsx',
     json: 'application/json', xml: 'application/xml', yaml: 'text/yaml', yml: 'text/yaml',
     py: 'text/x-python', go: 'text/x-go', c: 'text/x-c', cpp: 'text/x-c++', 
     java: 'text/x-java-source', rs: 'text/rust', sh: 'application/x-sh',
-
-    // 📦 Archives & Clusters
     zip: 'application/zip', rar: 'application/x-rar-compressed',
     '7z': 'application/x-7z-compressed', tar: 'application/x-tar', gz: 'application/gzip',
-
-    // 🧊 3D Models (For Neural Canvas later)
     obj: 'model/obj', gltf: 'model/gltf+json', glb: 'model/gltf-binary'
   };
 
-  // Agar extension map mein mil gaya toh wo do, warna default octet-stream (unknown binary)
   return mimeMap[ext] || 'application/octet-stream';
 };
 
@@ -71,17 +57,16 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
   const [currentFolder, setCurrentFolder] = useState<string>(""); 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // 🚀 NAYA STATE: Unified preview file state
-  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; mimeType: string } | null>(null);
+  // 🚀 FIX: State mein object_name add kiya
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string; mimeType: string; object_name?: string } | null>(null);
 
-  const USER_ID = "abhishek-babu-node"; // (Mocked for now)
+  const USER_ID = "abhishek-babu-node"; 
   const API_BASE = "/api/v1/storage"; 
   const MINIO_GATEWAY = "http://localhost:7480/hyper-users-data";
 
   const loadClusterTopology = useCallback(async () => {
     try {
       const data = await api.get(`${API_BASE}/files?user_id=${USER_ID}&folder=${encodeURIComponent(currentFolder)}`);
-      
       setFiles(data.files || []);
       setDirectories(data.directories || []);
       if (data.stats) {
@@ -131,16 +116,11 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
     } catch (err) { console.error(err); loadClusterTopology(); }
   }, [actions, loadClusterTopology]);
 
-  // 🚀 NAYA: Cleaned-up Preview Trigger Logic
+  // 🚀 FIX: File preview handler
   const handleOpenPreview = useCallback((file: any) => {
     const fileUrl = `${MINIO_GATEWAY}/${file.object_name}`;
     const mimeType = file.content_type || getMimeTypeFromExt(file.file_name);
-
-    setPreviewFile({
-      url: fileUrl,
-      name: file.file_name,
-      mimeType: mimeType
-    });
+    setPreviewFile({ url: fileUrl, name: file.file_name, mimeType: mimeType, object_name: file.object_name });
   }, []);
 
   useEffect(() => { loadClusterTopology(); }, [currentFolder, loadClusterTopology]);
@@ -148,44 +128,72 @@ export function FileListTable({ isLight, searchQuery }: FileListTableProps) {
   if (loading) return <div className="text-[10px] font-mono p-12 text-center opacity-40 animate-pulse tracking-widest text-white">SYNCHRONIZING TOPOLOGY...</div>;
 
   return (
-    <div className="w-full flex-1 flex flex-col lg:flex-row gap-6 justify-start items-start layer-performance">
-      <div className="flex-1 w-full flex flex-col justify-start">
-        <NavigationHeader currentFolder={currentFolder} onNavigateBack={() => { const parts = currentFolder.split("/"); parts.pop(); setCurrentFolder(parts.join("/")); }} onCreateFolderClick={() => setShowCreateModal(true)} primaryColor={theme?.primary} isLight={isLight} />
-        <DirectoryCards directories={directories} onNavigate={(name) => setCurrentFolder(currentFolder ? `${currentFolder}/${name}` : name)} onDirRename={handleDirRename} onDirDelete={handleDirDelete} onDirMove={(name) => { actions.setActiveDirTarget(name); actions.setIsFolderMoveMode(true); actions.setIsFileCopyMode(false); actions.setShowMoveModal(true); }} primaryColor={theme?.primary} isLight={isLight} />
+    <>
+      {/* 🚀 CUSTOM PREMIUM SCROLLBAR FOR LIST ONLY */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .hyper-list-scrollbar::-webkit-scrollbar { width: 6px; }
+        .hyper-list-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .hyper-list-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+        .hyper-list-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+      `}} />
 
-        <FileExplorerView 
-          filteredFiles={filteredFiles} handleOpenPreview={handleOpenPreview} handleDeleteNode={handleDeleteNode}
-          setActiveMoveFile={actions.setActiveMoveFile} setIsFolderMoveMode={actions.setIsFolderMoveMode}
-          setIsFileCopyMode={actions.setIsFileCopyMode} setShowMoveModal={actions.setShowMoveModal}
-          handleCopyAssetNode={actions.handleCopyAssetNode} handleRenameAssetNode={actions.handleRenameAssetNode}
-          setSelectedDetailFile={actions.setSelectedDetailFile} setActiveShareFile={actions.setActiveShareFile}
-          setShowShareModal={actions.setShowShareModal} MINIO_GATEWAY={MINIO_GATEWAY} themePrimary={theme?.primary} isLight={isLight}
+      {/* 👑 OUTER WRAPPER: Fully Locked to Parent constraints */}
+      <div className="w-full h-full flex flex-col lg:flex-row gap-6 justify-start items-start layer-performance overflow-hidden">
+        
+        {/* 👑 LEFT PANE: Strict Vertical Flex with Hidden Global Overflow */}
+        <div className="flex-1 w-full flex flex-col h-full overflow-hidden">
+          
+          {/* STATIC 1: Header (Won't shrink or scroll) */}
+          <div className="shrink-0">
+            <NavigationHeader currentFolder={currentFolder} onNavigateBack={() => { const parts = currentFolder.split("/"); parts.pop(); setCurrentFolder(parts.join("/")); }} onCreateFolderClick={() => setShowCreateModal(true)} primaryColor={theme?.primary} isLight={isLight} />
+          </div>
+
+          {/* STATIC 2: Folder Cards (Won't shrink or scroll vertically) */}
+          <div className="shrink-0 mt-4 mb-2">
+            <DirectoryCards directories={directories} onNavigate={(name) => setCurrentFolder(currentFolder ? `${currentFolder}/${name}` : name)} onDirRename={handleDirRename} onDirDelete={handleDirDelete} onDirMove={(name) => { actions.setActiveDirTarget(name); actions.setIsFolderMoveMode(true); actions.setIsFileCopyMode(false); actions.setShowMoveModal(true); }} primaryColor={theme?.primary} isLight={isLight} />
+          </div>
+
+          {/* 🚀 SCROLL ZONE: Only the files will scroll! Takes remaining height */}
+          <div className="flex-1 w-full overflow-y-auto hyper-list-scrollbar pb-24 pr-2">
+            <FileExplorerView 
+              filteredFiles={filteredFiles} handleOpenPreview={handleOpenPreview} handleDeleteNode={handleDeleteNode}
+              setActiveMoveFile={actions.setActiveMoveFile} setIsFolderMoveMode={actions.setIsFolderMoveMode}
+              setIsFileCopyMode={actions.setIsFileCopyMode} setShowMoveModal={actions.setShowMoveModal}
+              handleCopyAssetNode={actions.handleCopyAssetNode} handleRenameAssetNode={actions.handleRenameAssetNode}
+              setSelectedDetailFile={actions.setSelectedDetailFile} setActiveShareFile={actions.setActiveShareFile}
+              setShowShareModal={actions.setShowShareModal} MINIO_GATEWAY={MINIO_GATEWAY} themePrimary={theme?.primary} isLight={isLight}
+            />
+          </div>
+
+        </div>
+
+        {/* 👑 RIGHT PANE: Details panel gets its own scrolling zone if open */}
+        {actions.selectedDetailFile && (
+          <div className="shrink-0 w-full lg:w-80 h-full overflow-y-auto hyper-list-scrollbar">
+            <DetailsPanel 
+              file={actions.selectedDetailFile} 
+              onClose={() => actions.setSelectedDetailFile(null)} 
+              isLight={isLight} 
+              onAddTag={actions.handleAddNodeTag} 
+              onRemoveTag={actions.handleRemoveNodeTag}
+              tags={actions.activeNodeTags} 
+            />
+          </div>
+        )}
+
+        {/* Basic Modals */}
+        <CreateFolderModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateFolder} isLight={isLight} />
+        <MoveFolderModal isOpen={actions.showMoveModal} onClose={() => { actions.setShowMoveModal(false); actions.setActiveMoveFile(null); actions.setActiveDirTarget(null); actions.setIsFolderMoveMode(false); actions.setIsFileCopyMode(false); }} directories={directories} currentFolder={currentFolder} onConfirmMove={actions.handleUniversalRelocationCommit} isLight={isLight} />
+        <ShareModal isOpen={actions.showShareModal} onClose={() => { actions.setShowShareModal(false); actions.setActiveShareFile(null); }} file={actions.activeShareFile} apiBase={API_BASE} isLight={isLight} />
+        
+        {/* 🚀 NAYA: Apna Brand-new Universal Preview Inject Kar Diya Yahan */}
+        <UniversalPreview 
+          isOpen={!!previewFile}
+          file={previewFile || { url: '', name: '', mimeType: '' }}
+          onClose={() => setPreviewFile(null)}
         />
+        
       </div>
-
-      {actions.selectedDetailFile && (
-        <DetailsPanel 
-          file={actions.selectedDetailFile} 
-          onClose={() => actions.setSelectedDetailFile(null)} 
-          isLight={isLight} 
-          onAddTag={actions.handleAddNodeTag} 
-          onRemoveTag={actions.handleRemoveNodeTag}
-          tags={actions.activeNodeTags} 
-        />
-      )}
-
-      {/* Basic Modals */}
-      <CreateFolderModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onCreate={handleCreateFolder} isLight={isLight} />
-      <MoveFolderModal isOpen={actions.showMoveModal} onClose={() => { actions.setShowMoveModal(false); actions.setActiveMoveFile(null); actions.setActiveDirTarget(null); actions.setIsFolderMoveMode(false); actions.setIsFileCopyMode(false); }} directories={directories} currentFolder={currentFolder} onConfirmMove={actions.handleUniversalRelocationCommit} isLight={isLight} />
-      <ShareModal isOpen={actions.showShareModal} onClose={() => { actions.setShowShareModal(false); actions.setActiveShareFile(null); }} file={actions.activeShareFile} apiBase={API_BASE} isLight={isLight} />
-      
-      {/* 🚀 NAYA: Apna Brand-new Universal Preview Inject Kar Diya Yahan */}
-      <UniversalPreview 
-        isOpen={!!previewFile}
-        file={previewFile || { url: '', name: '', mimeType: '' }}
-        onClose={() => setPreviewFile(null)}
-      />
-      
-    </div>
+    </>
   );
 }

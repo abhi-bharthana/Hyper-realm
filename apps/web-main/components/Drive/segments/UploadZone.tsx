@@ -4,12 +4,12 @@ import { useState, useRef } from "react";
 import { useThemeStore } from "@/store/useThemeStore";
 import { UploadCloud, AlertTriangle, CheckCircle2, Pause, Play, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import { api, API_URLS } from "@/lib/api"; 
 
 interface UploadZoneProps {
   isLight: boolean;
   onUploadSuccess?: (newUsage: number) => void;
-  currentFolder?: string; // 🎯 Mapped subfolder context
+  currentFolder?: string; 
 }
 
 const CHUNK_SIZE = 5 * 1024 * 1024; 
@@ -24,7 +24,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
   const [chunkInfo, setChunkInfo] = useState({ current: 0, total: 0 });
   const [statusMsg, setStatusMsg] = useState("");
   
-  // 🎯 PAUSE / RESUME TRACKING REF ENGINE
   const [isPaused, setIsPaused] = useState(false);
   const pausedRef = useRef(false);
   const uploadCancelledRef = useRef(false);
@@ -49,15 +48,15 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
   };
 
   const togglePauseResume = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Avoid triggering file selection panel on click
+    e.stopPropagation(); 
     const nextPauseState = !isPaused;
     setIsPaused(nextPauseState);
     pausedRef.current = nextPauseState;
     if (!nextPauseState) setStatusMsg("Re-establishing channel stream...");
   };
 
-  // 🚀 THE AXIOS 3-STEP RESUMABLE MULTIPART ENGINE
-  const processFile = async (file: File) => {
+  // 🚀 FIX: Added `retryCount` to strictly break infinite loops!
+  const processFile = async (file: File, retryCount = 0) => {
     const maxLimitBytes = 5 * 1024 * 1024 * 1024; // 5GB
     if (file.size > maxLimitBytes) {
       setErrorMessage("5GB Storage Limit Exceeded!");
@@ -65,45 +64,62 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
       return;
     }
 
-    setFileName(file.name);
+    if (retryCount === 0) setFileName(file.name);
     setUploadStatus('uploading');
     setIsPaused(false);
     pausedRef.current = false;
     uploadCancelledRef.current = false;
-    setProgress(0);
-    setStatusMsg("Initializing secure handshake...");
+    if (retryCount === 0) setProgress(0);
+    setStatusMsg(retryCount > 0 ? "Bypassing dead cache... Initiating new stream!" : "Initializing secure handshake...");
 
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     setChunkInfo({ current: 0, total: totalChunks });
 
-    const API_BASE = "http://localhost:8001/api/v1/storage";
+    const API_BASE = `${API_URLS.STORAGE}/storage`;
     const USER_ID = "abhishek-babu-node"; 
-    const headers = { "Authorization": "Bearer MOCK_HYPER_ID_JWT_TOKEN" };
 
     try {
       // ==========================================
-      // STEP 1: RESUMABLE HANDSHAKE INITIALIZATION
+      // STEP 1: SMART HANDSHAKE INITIALIZATION
       // ==========================================
       const initForm = new FormData();
       initForm.append("user_id", USER_ID);
-      initForm.append("file_name", file.name);
-      initForm.append("file_size", file.size.toString()); // Passing size to fetch Redis token hash
+      
+      // 🚀 CACHE-BUSTER MAGIC: Backend ko bewakoof banane ki ninja technique
+      let backendFileName = file.name;
+      if (retryCount > 0) {
+          const parts = file.name.split('.');
+          const ext = parts.pop();
+          // Adds a tiny timestamp so the Go backend ignores its old Redis cache
+          backendFileName = `${parts.join('.')}_rev${Date.now()}.${ext}`;
+      }
+      initForm.append("file_name", backendFileName);
+      
+      initForm.append("file_size", file.size.toString()); 
       initForm.append("prefix", currentFolder);
 
-      const initRes = await axios.post(`${API_BASE}/upload/init`, initForm, { 
-        headers: { ...headers, "Content-Type": "multipart/form-data" } 
+      const initRes = await api.raw(`${API_BASE}/upload/init`, { 
+        method: "POST",
+        body: initForm
       });
+      if (!initRes.ok) throw new Error(await initRes.text());
       
-      const { upload_id, object_name, resume_from_part } = initRes.data;
+      const initData = await initRes.json();
+      
+      const { upload_id, object_name, resume_from_part, file_id } = initData;
       const startPart = resume_from_part || 0;
 
-      if (startPart > 0) {
+      const cacheKey = `hyper_upload_parts_${file_id}`;
+      let uploadedParts: { PartNumber: number; ETag: string }[] = [];
+
+      // Only attempt to resume if we haven't actively busted the cache
+      if (startPart > 0 && retryCount === 0) {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) uploadedParts = JSON.parse(cached);
         setStatusMsg(`Active session cached. Resuming from part ${startPart + 1}...`);
       } else {
         setStatusMsg("Connection established. Streaming blocks...");
       }
-
-      const uploadedParts: { PartNumber: number; ETag: string }[] = [];
 
       // ==========================================
       // STEP 2: LOOP & UPLOAD CHUNKS
@@ -111,15 +127,13 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
       for (let i = 0; i < totalChunks; i++) {
         const partNum = i + 1;
 
-        // 🚦 RESUME INTERCEPTION BYPASS
-        if (partNum <= startPart) {
+        if (partNum <= startPart && retryCount === 0 && uploadedParts.find(p => p.PartNumber === partNum)) {
           const skipProgress = Math.round((partNum / totalChunks) * 100);
           setProgress(skipProgress);
           setChunkInfo({ current: partNum, total: totalChunks });
           continue;
         }
 
-        // 🛑 SPIN LOCK WHEEL FOR STATE PAUSE DEFERRALS
         while (pausedRef.current) {
           setStatusMsg("Transmission deferred (PAUSED)");
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -136,18 +150,35 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
         chunkForm.append("upload_id", upload_id);
         chunkForm.append("object_name", object_name);
         chunkForm.append("part_number", partNum.toString());
+        chunkForm.append("file_id", file_id); 
         chunkForm.append("chunk", chunkBlob, file.name);
 
-        const chunkRes = await axios.post(`${API_BASE}/upload/chunk`, chunkForm, { 
-          headers: { ...headers, "Content-Type": "multipart/form-data" } 
+        const chunkRes = await api.raw(`${API_BASE}/upload/chunk`, { 
+          method: "POST",
+          body: chunkForm
         });
+
+        // 🚀 LOOP BREAKER: Sirf EK baar retry karega
+        if (!chunkRes.ok) {
+           const errText = await chunkRes.text();
+           if (retryCount < 1 && (chunkRes.status === 500 || errText.includes("does not exist") || errText.includes("rejected"))) {
+               console.warn(`Zombie Session Detected. Flushing cache and tricking backend (Attempt ${retryCount + 1})...`);
+               localStorage.removeItem(cacheKey);
+               setTimeout(() => processFile(file, retryCount + 1), 1500); // Trigger Cache-Buster
+               return; 
+           }
+           throw new Error(`Server Error: ${errText || chunkRes.status}`);
+        }
+
+        const chunkData = await chunkRes.json();
         
         uploadedParts.push({
           PartNumber: partNum,
-          ETag: chunkRes.data.etag,
+          ETag: chunkData.etag,
         });
 
-        // Live stats tracking metrics updates
+        localStorage.setItem(cacheKey, JSON.stringify(uploadedParts));
+
         setChunkInfo({ current: partNum, total: totalChunks });
         setProgress(Math.round((partNum / totalChunks) * 100));
       }
@@ -157,29 +188,31 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
       // ==========================================
       setStatusMsg("Assembling architecture shards...");
       
-      const completeRes = await axios.post(
+      const completeRes = await api.post(
         `${API_BASE}/upload/complete?user_id=${USER_ID}&upload_id=${upload_id}&object_name=${encodeURIComponent(object_name)}&total_size=${file.size}`, 
-        uploadedParts, 
-        { headers: { ...headers, "Content-Type": "application/json" } }
+        uploadedParts
       );
 
-      if (completeRes.data.status === "Success" || completeRes.data.used_storage_bytes !== undefined) {
+      if (completeRes.status === "Success" || completeRes.used_storage_bytes !== undefined) {
         setStatusMsg("Node Sync Complete!");
         setUploadStatus('success');
+        localStorage.removeItem(cacheKey); 
         
-        if (onUploadSuccess && typeof completeRes.data.used_storage_bytes === "number") {
-          onUploadSuccess(completeRes.data.used_storage_bytes);
+        if (onUploadSuccess && typeof completeRes.used_storage_bytes === "number") {
+          onUploadSuccess(completeRes.used_storage_bytes);
         }
         
         window.dispatchEvent(new Event("refresh-assets"));
         setTimeout(() => setUploadStatus('idle'), 3000);
       } else {
-        throw new Error(completeRes.data.error || "Failed to assemble file chunks");
+        throw new Error(completeRes.error || "Failed to assemble file chunks");
       }
 
     } catch (err: any) {
       console.error("Multipart streaming failed:", err);
-      setErrorMessage(err.response?.data?.error || "Pipeline stream disconnected");
+      let errMsg = "Pipeline stream disconnected";
+      if (err.message) errMsg = err.message;
+      setErrorMessage(errMsg);
       setUploadStatus('error');
     }
   };
@@ -210,7 +243,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
         style={isDragActive ? { borderColor: theme?.primary } : {}}
       >
         <AnimatePresence mode="wait">
-          {/* STATE 1: IDLE */}
           {uploadStatus === 'idle' && (
             <motion.div 
               key="idle"
@@ -229,7 +261,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
             </motion.div>
           )}
 
-          {/* STATE 2: UPLOADING (WITH PROGRESS + PAUSE TRIGGER CONTROLS) */}
           {uploadStatus === 'uploading' && (
             <motion.div 
               key="uploading"
@@ -245,7 +276,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
                   <span className="font-black text-xs" style={{ color: theme?.primary }}>{progress}%</span>
                 </div>
                 
-                {/* Visual Progress Bar */}
                 <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-white/10'}`}>
                   <motion.div 
                     layoutId="uploadProgress"
@@ -258,7 +288,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
                   Transmitting Chunk {chunkInfo.current} of {chunkInfo.total}
                 </p>
 
-                {/* INTERACTIVE CONTROLLER ACTIONS LAYER */}
                 <button 
                   onClick={togglePauseResume}
                   className={`mt-3 px-4 py-1.5 rounded-xl font-mono text-[8px] uppercase tracking-widest flex items-center gap-1.5 border mx-auto transition-all active:scale-95 ${
@@ -275,7 +304,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
             </motion.div>
           )}
 
-          {/* STATE 3: SUCCESS */}
           {uploadStatus === 'success' && (
             <motion.div 
               key="success"
@@ -289,7 +317,6 @@ export function UploadZone({ isLight, onUploadSuccess, currentFolder = "" }: Upl
             </motion.div>
           )}
 
-          {/* STATE 4: ERROR */}
           {uploadStatus === 'error' && (
             <motion.div 
               key="error"
