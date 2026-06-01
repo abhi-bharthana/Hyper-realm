@@ -5,10 +5,11 @@ import { useParams } from "next/navigation";
 import { api, API_URLS } from "@/lib/api";
 import { useThemeStore } from "@/store/useThemeStore";
 
-import { NeuralEditor } from "@/components/canvas/NeuralEditor";
 import { CanvasBackground } from "@/components/canvas/CanvasBackground";
 import { AspectRatioControls } from "@/components/canvas/AspectRatioControls";
 import { CanvasTabBar, CanvasPage } from "@/components/canvas/CanvasTabBar";
+import { NeuralCanvasWorkspace } from "@/components/canvas/NeuralCanvasWorkspace"; 
+import { CanvasOverlayRef } from "@/components/canvas/NeuralCanvasOverlay";
 
 export default function CanvasEditor() {
   const params = useParams();
@@ -21,16 +22,29 @@ export default function CanvasEditor() {
   
   const isLight = theme === 'light-verdant' || theme === 'light';
 
+  // 📐 Layout & Core States
   const [aspectRatio, setAspectRatio] = useState("infinite");
   const [isLoading, setIsLoading] = useState(true);
+  const [editorInstance, setEditorInstance] = useState<any>(null);
   
-  // 🚀 DEFAULT ROOT NODE
+  // 🚀 DYNAMIC ISLAND (DOCK) STATES PIPELINE
+  // Default menu is 'text' since we removed 'main' for the cleaner Apple UI
+  const [activeMenu, setActiveMenu] = useState<'main' | 'text' | 'draw' | 'shapes'>('text');
+  const [drawTool, setDrawTool] = useState<'pen' | 'eraser' | 'none'>('none');
+  const [brushSize, setBrushSize] = useState(4);
+  const [activeColor, setActiveColor] = useState('#22d3ee');
+
+  // 📝 Node Management States
   const [pages, setPages] = useState<CanvasPage[]>([{ id: 'default', name: 'Main Node', content: '', parentId: null }]);
   const [activePageId, setActivePageId] = useState<string>('default');
   
+  // 🧠 MEMORY REF: Connects the Vector Draw layer to the Dynamic Dock for seamless Undo/Redo
+  const canvasOverlayRef = useRef<CanvasOverlayRef>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Fetch Existing Canvas Data
+  // ==========================================
+  // 1. DATA HYDRATION (Fetch Canvas)
+  // ==========================================
   useEffect(() => {
     setCanvasMode(true);
     const fetchCanvas = async () => {
@@ -44,7 +58,6 @@ export default function CanvasEditor() {
           if (typeof parsed === 'string') parsed = JSON.parse(parsed);
           
           if (Array.isArray(parsed) && parsed.length > 0) {
-            // 🚀 Backward Compatibility: Add parentId if missing
             const normalizedPages = parsed.map(p => ({
               ...p,
               parentId: p.parentId !== undefined ? p.parentId : null
@@ -66,7 +79,9 @@ export default function CanvasEditor() {
     return () => setCanvasMode(false);
   }, [canvasId]);
 
-  // 2. SAVE LOGIC
+  // ==========================================
+  // 2. CLOUD BACKEND SAVE PIPELINE
+  // ==========================================
   const handleSaveToCloud = async () => {
     if (isLoading) return;
     setCanvasSaveStatus("Saving...");
@@ -109,16 +124,15 @@ export default function CanvasEditor() {
   }, [forceDeleteTrigger]);
 
   // ==========================================
-  // 🚀 3. PAGE (NODE) MANAGEMENT LOGIC
+  // 3. NODE MANAGEMENT LOGIC (Tree Actions)
   // ==========================================
-  
   const handleAddPage = (parentId: string | null) => {
     const newName = prompt("Initialize Node Name:", "New Neural Node");
-    if (!newName) return; // Action cancelled if user didn't enter a name
+    if (!newName) return;
     
     const newId = `node-${Date.now()}`;
     setPages([...pages, { id: newId, name: newName, content: '', parentId }]);
-    setActivePageId(newId); // Focus the newly created node
+    setActivePageId(newId);
   };
 
   const handleRenamePage = (id: string, currentName: string) => {
@@ -128,11 +142,9 @@ export default function CanvasEditor() {
     }
   };
 
-  // 🚀 Cascading Delete: Us Node ko aur uske saare bacchon (sub-nodes) ko delete karo
   const handleDeletePage = (idToDelete: string) => {
     if (!confirm("Are you sure you want to delete this node and ALL its sub-nodes?")) return;
 
-    // Recursive function to find all descendant IDs
     const getDescendants = (parentId: string): string[] => {
       const childrenIds = pages.filter(p => p.parentId === parentId).map(p => p.id);
       let allDescendants = [...childrenIds];
@@ -145,7 +157,6 @@ export default function CanvasEditor() {
     const idsToRemove = [idToDelete, ...getDescendants(idToDelete)];
     const remainingPages = pages.filter(p => !idsToRemove.includes(p.id));
 
-    // Fallback if the last node gets deleted
     if (remainingPages.length === 0) {
       const fallbackId = `default-${Date.now()}`;
       setPages([{ id: fallbackId, name: 'Main Node', content: '', parentId: null }]);
@@ -153,7 +164,7 @@ export default function CanvasEditor() {
     } else {
       setPages(remainingPages);
       if (idsToRemove.includes(activePageId)) {
-        setActivePageId(remainingPages[0].id); // Switch active page to first available
+        setActivePageId(remainingPages[0].id);
       }
     }
   };
@@ -161,58 +172,47 @@ export default function CanvasEditor() {
   const activePage = pages.find(p => p.id === activePageId) || pages[0];
 
   return (
-    <div className={`fixed top-0 left-0 w-screen h-screen flex flex-col transition-colors duration-700 z-10 font-sans
+    <div className={`fixed top-0 left-0 w-screen h-screen flex flex-col transition-colors duration-700 z-10 font-sans overflow-hidden
       ${isLight ? 'bg-[#f4f6f8]' : 'bg-[#030303]'}`}>
       
+      {/* 🌌 BACKGROUND & CONTROLS */}
       <CanvasBackground isLight={isLight} />
       <AspectRatioControls aspectRatio={aspectRatio} setAspectRatio={setAspectRatio} isLight={isLight} />
 
+      {/* 👑 LAYER 1: UNIFIED DOCK & SIDEBAR (CanvasTabBar handles both) */}
       {!isLoading && (
         <CanvasTabBar 
-          pages={pages}
-          activePageId={activePageId}
-          setActivePageId={setActivePageId}
-          onAddPage={handleAddPage}
-          onRenamePage={handleRenamePage}
-          onDeletePage={handleDeletePage} // 🚀 Pass delete logic
-          aspectRatio={aspectRatio}
-          isLight={isLight}
+          pages={pages} activePageId={activePageId} setActivePageId={setActivePageId}
+          onAddPage={handleAddPage} onRenamePage={handleRenamePage} onDeletePage={handleDeletePage}
+          aspectRatio={aspectRatio} isLight={isLight}
+          
+          // 🚀 PIPELINE TO DYNAMIC ISLAND (CanvasBlock inside CanvasTabBar)
+          editor={editorInstance} 
+          activeMenu={activeMenu} setActiveMenu={setActiveMenu}
+          drawTool={drawTool} setDrawTool={setDrawTool}
+          brushSize={brushSize} setBrushSize={setBrushSize}
+          activeColor={activeColor} setActiveColor={setActiveColor}
+          canvasOverlayRef={canvasOverlayRef}
         />
       )}
 
-      {/* CANVAS WORKSPACE AREA */}
-      <div className="flex-1 w-full h-full overflow-auto z-10 pt-28 pb-32 flex flex-col items-center justify-start pl-4 md:pl-[300px] pr-4 md:pr-10 custom-scrollbar">
-        <div 
-          className={`transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] relative flex flex-col flex-shrink-0 group
-            ${isLight 
-              ? 'bg-white shadow-[0_30px_80px_-20px_rgba(0,0,0,0.08),0_0_20px_rgba(0,0,0,0.02)] border border-slate-200/60' 
-              : 'bg-[#090909] border border-white/5 shadow-[0_30px_100px_rgba(0,0,0,0.8)] hover:border-white/10'}
-            ${aspectRatio === 'A4' ? 'w-[794px] min-h-[1123px] rounded-xl' : ''}
-            ${aspectRatio === '16:9' ? 'w-full max-w-[1280px] aspect-video rounded-3xl' : ''}
-            ${aspectRatio === 'infinite' ? 'w-full max-w-[1600px] min-h-[calc(100vh-160px)] rounded-[40px] border-dashed border-2 border-primary/20 hover:border-primary/40' : ''}
-          `}
-        >
-          {!isLight && <div className="absolute inset-0 pointer-events-none rounded-[inherit] shadow-[inset_0_0_30px_rgba(255,255,255,0.01)] transition-opacity group-hover:shadow-[inset_0_0_30px_rgba(255,255,255,0.03)]"></div>}
-
-          <div className="flex-1 w-full h-full relative z-10 p-4 md:p-8">
-            {isLoading ? (
-              <div className="flex-1 flex flex-col items-center justify-center h-full opacity-60 font-mono text-center pt-32 animate-pulse">
-                 <div className="w-8 h-8 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin mb-6 shadow-[0_0_15px_rgba(var(--primary),0.5)]"></div>
-                 <p className="text-xs uppercase tracking-[0.3em] font-black">Establishing Neural Link...</p>
-              </div>
-            ) : (
-              <NeuralEditor 
-                key={activePageId} 
-                initialContent={activePage?.content || ''} 
-                onChange={(newContent) => {
-                  setPages(pages.map(p => p.id === activePageId ? { ...p, content: newContent } : p));
-                }} 
-                isLight={isLight} 
-              />
-            )}
-          </div>
-        </div>
-      </div>
+      {/* 👑 LAYER 2: THE WORKSPACE (Text Editor + Vector Drawing Canvas) */}
+      <NeuralCanvasWorkspace 
+        isLoading={isLoading}
+        aspectRatio={aspectRatio}
+        isLight={isLight}
+        activePageId={activePageId}
+        activePageContent={activePage?.content || ''}
+        activeMenu={activeMenu}
+        drawTool={drawTool}
+        brushSize={brushSize}
+        activeColor={activeColor}
+        setPagesContent={(newContent) => {
+          setPages(pages.map(p => p.id === activePageId ? { ...p, content: newContent } : p));
+        }}
+        setEditorInstance={(editor) => setEditorInstance(editor)}
+        canvasOverlayRef={canvasOverlayRef}
+      />
     </div>
   );
 }

@@ -10,16 +10,16 @@ import { api, API_URLS } from "@/lib/api";
 import { BrandBlock } from "./segments/BrandBlock";
 import { SearchBlock } from "./segments/SearchBlock";
 import { ActionBlock } from "./segments/ActionBlock";
-import { CanvasBlock } from "./segments/CanvasBlock"; // 🚀 Naya Import
+
+// ❌ YAHAN SE CanvasBlock KA IMPORT HATA DIYA!
 
 export function FloatingNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   
-  // 🚀 Canvas states ko store se pull kar liya
+  // Canvas mode pull kar rahe hain taaki global nav ko hide kiya ja sake
   const { 
-    theme, toggleSettings, toggleDiscover, 
-    isCanvasMode, canvasTitle, canvasSaveStatus, setCanvasTitle 
+    theme, toggleSettings, toggleDiscover, isCanvasMode 
   } = useThemeStore(); 
   
   const { mode, setMode, openChat, activeReceiverId } = useChatStore();
@@ -124,12 +124,12 @@ export function FloatingNavbar() {
     };
   }, [isSearchOpen, closeSearch]);
 
-  if (hiddenPages.includes(pathname)) return null;
+  // 🚀 THE ULTIMATE FIX: Agar page login/onboarding hai, YA FIR user Canvas mode mein hai, 
+  // toh global navbar render hi mat karo! Canvas apna dock khud render karega.
+  if (hiddenPages.includes(pathname) || isCanvasMode) return null;
 
-  // 🚀 Dynamic width calculate krr rahe hain based on mode
-  const navWidth = isCanvasMode 
-    ? 'md:w-[700px] w-[calc(100vw-32px)]' 
-    : isSearchOpen 
+  // Dynamic width calculate krr rahe hain based on mode
+  const navWidth = isSearchOpen 
       ? 'md:w-[460px] w-[calc(100vw-32px)]' 
       : 'md:w-[580px] w-[calc(100vw-32px)]';
 
@@ -141,14 +141,7 @@ export function FloatingNavbar() {
       ${navWidth}`}
     >
       {/* 🚀 Render Block Swapping */}
-      {isCanvasMode ? (
-        <CanvasBlock 
-          title={canvasTitle}
-          setTitle={setCanvasTitle}
-          saveStatus={canvasSaveStatus}
-          isLight={isLight}
-        />
-      ) : isSearchOpen ? (
+      {isSearchOpen ? (
         <SearchBlock 
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
