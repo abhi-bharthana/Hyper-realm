@@ -10,9 +10,16 @@ import { FileListTable } from "./segments/FileListTable";
 import { UploadZone } from "./segments/UploadZone"; 
 import { NotesStorageCard } from "./segments/NotesStorageCard";
 
-export function DriveDashboard() {
+// 1️⃣ Naya Prop add kiya taaki OS ka pata chal sake
+interface DriveDashboardProps {
+  isOSMode?: boolean;
+}
+
+export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
   const { theme } = useThemeStore();
-  const isLight = theme === 'light-verdant' || theme === 'light';
+  
+  // 🔥 2️⃣ MAGIC FIX: Agar OS mode hai, toh hamesha Dark (isLight = false) rakho. Warna global theme!
+  const isLight = isOSMode ? false : (theme === 'light-verdant' || theme === 'light');
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,7 +42,7 @@ export function DriveDashboard() {
   };
 
   return (
-    // 👑 HYBRID LOCK WRAPPER
+    // 👑 HYBRID LOCK WRAPPER (Tera exact same layout, no changes!)
     <div className={`
       relative lg:fixed lg:top-[80px] left-0 right-0 lg:bottom-0 
       w-full min-h-[calc(100vh-80px)] lg:min-h-0 
@@ -43,6 +50,7 @@ export function DriveDashboard() {
       px-4 sm:px-6 md:px-12 
       pt-4 pb-24 lg:pb-6 
       transition-colors duration-500 flex flex-col items-center bg-transparent lg:z-40
+      ${isOSMode ? 'text-white' : ''} 
     `}>
       
       {/* CUSTOM SCROLLBAR FOR PANELS */}
@@ -67,7 +75,7 @@ export function DriveDashboard() {
           </div>
         </div>
 
-        {/* 🚀 NAYA MASTER STROKE: Mobile-only Upload Zone (Sabse upar chamkega mobile pr) */}
+        {/* 🚀 Mobile-only Upload Zone */}
         <div className="block lg:hidden w-full shrink-0 px-2">
           <UploadZone 
             isLight={isLight} 
@@ -78,10 +86,10 @@ export function DriveDashboard() {
         {/* 👑 CORE GRID SYSTEM */}
         <div className="w-full h-auto lg:h-full flex flex-col lg:grid lg:grid-cols-4 gap-6 lg:gap-8 items-start overflow-visible lg:overflow-hidden pb-4">
           
-          {/* 🚀 LEFT COLUMN: Analytics & Stats (Mobile par order-last hokar sabse neeche chala jayega) */}
+          {/* 🚀 LEFT COLUMN: Analytics & Stats */}
           <div className="lg:col-span-1 flex flex-col gap-4 lg:gap-5 w-full h-auto lg:h-full overflow-visible lg:overflow-y-auto hyper-panel-scrollbar pr-0 lg:pr-2 lg:pb-10 order-last lg:order-none">
             
-            {/* Desktop-only Upload Zone (Mobile par hidden rahega taaki double upload box na dikhe) */}
+            {/* Desktop-only Upload Zone */}
             <div className="hidden lg:block">
               <UploadZone 
                 isLight={isLight} 
@@ -96,7 +104,7 @@ export function DriveDashboard() {
             <NotesStorageCard isLight={isLight} />
           </div>
 
-          {/* 🚀 RIGHT COLUMN: Directory Browsing Console (Mobile par order-first hokar Upload ke theek niche aayega) */}
+          {/* 🚀 RIGHT COLUMN: Directory Browsing Console */}
           <div className={`lg:col-span-3 
             h-[75vh] lg:h-full 
             border rounded-3xl lg:rounded-[2.5rem] 

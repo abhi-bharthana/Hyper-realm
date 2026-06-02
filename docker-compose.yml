@@ -152,7 +152,6 @@ services:
     ports:
       - "8083:8083"
     environment:
-      # 🔥 FIX: Separate variables instead of one string to avoid URL parsing issues
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
@@ -205,7 +204,7 @@ services:
     image: confluentinc/cp-kafka:7.5.0
     container_name: hyper-realm-kafka-1
     ports:
-      - "29092:29092"  # 🚀 BAHAAR KA DARWAZA (For Python)
+      - "29092:29092"
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
       interval: 10s
@@ -215,12 +214,9 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      # 🚀 Added EXTERNAL to listeners
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,EXTERNAL://0.0.0.0:29092
-      # 🚀 Told Kafka to identify as localhost:29092 for outside traffic
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      # 🚀 Mapped EXTERNAL to PLAINTEXT protocol
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
@@ -233,6 +229,7 @@ services:
       resources:
         limits:
           memory: 512M
+
   # ==========================================
   # 8. PRIMARY STATE SYSTEM DATABASE (PostgreSQL)
   # ==========================================
@@ -316,7 +313,33 @@ services:
           memory: 256M
 
   # ==========================================
-  # 🌐 10. API GATEWAY (NGINX - Central Routing)
+  # 🚀 10. CLOUD OS STATE MANAGER (Go) - NAYA ADD KIYA HAI
+  # ==========================================
+  hyper-os:
+    build:
+      context: ./services/hyper-os
+      dockerfile: Dockerfile
+    container_name: hyper-realm-hyper-os-1
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DATABASE_URL=host=hyper-db user=${DB_USER} password=${DB_PASSWORD} dbname=${DB_NAME} port=5432 sslmode=disable
+      - JWT_PUBLIC_KEY_PATH=/app/certs/public_key.pem
+    depends_on:
+      hyper-db:
+        condition: service_healthy
+    volumes:
+      - ./services/hyper-id/certs:/app/certs:ro
+    networks:
+      - hyper-realm-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ==========================================
+  # 🌐 11. API GATEWAY (NGINX - Central Routing)
   # ==========================================
   api-gateway:
     image: nginx:alpine
@@ -332,6 +355,7 @@ services:
       - hyper-search
       - sms-service
       - hyper-canvas
+      - hyper-os # 👈 NGINX KO BHI BATA DIYA KI YE SERVICE HAI
     networks:
       - hyper-realm-net
     deploy:
@@ -340,7 +364,7 @@ services:
           memory: 128M
       
   # ==========================================
-  # 11. MATRIX INFRASTRUCTURE WATCHDOGS (Telemetry Stack)
+  # 12. MATRIX INFRASTRUCTURE WATCHDOGS (Telemetry Stack)
   # ==========================================
   prometheus:
     image: prom/prometheus:latest

@@ -19,7 +19,10 @@ export const API_URLS = {
     ? `http://${window.location.hostname}:8080/api/v1` 
     : "http://127.0.0.1:8080/api/v1",      
     
-  STORAGE: getBaseUrl()  
+  STORAGE: getBaseUrl(), // 👈 YAHAN COMMA MISSING THA! 
+  
+  // 🚀 NAYA: OS State ke liye direct NGINX route
+  OS: getBaseUrl()
 };
 
 async function fetchClient(url: string, options: RequestInit = {}) {
