@@ -21,8 +21,10 @@ export const API_URLS = {
     
   STORAGE: getBaseUrl(), // 👈 YAHAN COMMA MISSING THA! 
   
-  // 🚀 NAYA: OS State ke liye direct NGINX route
-  OS: getBaseUrl()
+  // 🚀 DEV FIX: Bypass Nginx (8088), direct Hit Go Backend (4000) for OS & Wellbeing
+  OS: typeof window !== "undefined" 
+    ? `http://${window.location.hostname}:4000/api/v1` 
+    : "http://127.0.0.1:4000/api/v1"
 };
 
 async function fetchClient(url: string, options: RequestInit = {}) {

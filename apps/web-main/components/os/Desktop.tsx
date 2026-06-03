@@ -9,10 +9,11 @@ import { Dock } from '@/components/os/Dock';
 import { ContextMenu } from '@/components/os/ContextMenu';
 import { TopBar } from '@/components/os/TopBar';
 import { TaskManager } from '@/components/os/apps/TaskManager'; 
-import { SettingsApp } from '@/components/os/apps/SettingsApp';
+// 🚀 NAYA MODULAR SETTINGS IMPORT
+import SettingsApp from '@/components/os/apps/settings/SettingsApp';
 import CalculatorApp from '@/components/os/apps/CalculatorApp'; 
 import { NeuralCanvasApp } from '@/components/os/apps/NeuralCanvasApp'; 
-import { WellbeingTracker } from '@/components/os/WellbeingTracker'; // 👈 Wellbeing Tracker Import Kiya
+import { WellbeingTracker } from '@/components/os/WellbeingTracker';
 
 const DriveDashboard = dynamic(
   () => import('@/components/Drive/DriveDashboard').then((mod) => mod.DriveDashboard),
@@ -24,7 +25,6 @@ export const Desktop = () => {
   const [contextMenu, setContextMenu] = useState({ show: false, x: 0, y: 0 });
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // 🚀 YAHAN fetchCloudState BHI NIKAL LIYA
   const { preferences, fetchCloudState } = useUserStore();
   
   const dockPos = preferences?.dockPosition || 'bottom';
@@ -32,15 +32,13 @@ export const Desktop = () => {
   const wallpaper = preferences?.wallpaper || 'default'; 
 
   useEffect(() => {
-    // 1. Local Storage rehydrate karo pehle
     useOSStore.persist.rehydrate();
     useUserStore.persist.rehydrate(); 
     
-    // 2. 🚀 THE MAGIC: OS load hote hi seedha Go Backend se fresh data uthao!
     fetchCloudState();
     
     setIsHydrated(true);
-  }, [fetchCloudState]); // Dependency add kardi taaki react warning na de
+  }, [fetchCloudState]); 
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();

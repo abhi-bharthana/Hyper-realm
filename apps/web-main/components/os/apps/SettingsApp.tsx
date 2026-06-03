@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, LayoutDashboard, Palette, CheckCircle2, Monitor, Link2, FileText, Image as ImageIcon, Activity, Clock, Wifi, ShieldCheck, RotateCcw } from 'lucide-react';
+import { User, LayoutDashboard, Palette, CheckCircle2, Monitor, Link2, FileText, Image as ImageIcon, Activity, Clock, Wifi, ShieldCheck } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore'; 
 import { useWellbeingStore } from '@/store/useWellbeingStore'; // 👈 Wellbeing Store Import Kiya
 
@@ -46,8 +46,8 @@ export const SettingsApp = () => {
   const [localProfile, setLocalProfile] = useState(profile);
   const [isSaved, setIsSaved] = useState(false);
 
-  // 👈 Wellbeing Global Data
-  const { totalOnlineTime, appUsage, resetData } = useWellbeingStore();
+  // 🚀 TAMPER-PROOF DATA: Reset option removed!
+  const { totalOnlineTime, appUsage } = useWellbeingStore();
 
   const [widgets, setWidgets] = useState({
     storage: true, calendar: false, notes: true, cryptoTicker: false
@@ -57,7 +57,7 @@ export const SettingsApp = () => {
 
   useEffect(() => {
     useUserStore.persist.rehydrate();
-    useWellbeingStore.persist.rehydrate(); // Make sure wellbeing is rehydrated
+    useWellbeingStore.persist.rehydrate(); 
     setIsMounted(true);
   }, []);
 
@@ -78,20 +78,6 @@ export const SettingsApp = () => {
     return url;
   };
 
-  // Reusable Pill-shaped Navigation Button
-  const NavButton = ({ id, icon: Icon, label, activeColor }: { id: string, icon: any, label: string, activeColor: string }) => (
-    <button 
-      onClick={() => setActiveTab(id)}
-      className={`flex items-center gap-3 px-4 py-3 rounded-full transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] text-sm font-bold w-full ${
-        activeTab === id 
-          ? `bg-[${activeColor}]/20 text-[${activeColor}] shadow-[0_4px_15px_rgba(0,0,0,0.1)] scale-105` 
-          : 'text-white/50 hover:bg-white/5 hover:text-white active:scale-95'
-      }`}
-    >
-      <Icon size={16} /> {label}
-    </button>
-  );
-
   return (
     <div className="flex h-full w-full text-white overflow-hidden bg-transparent font-sans">
       
@@ -105,7 +91,6 @@ export const SettingsApp = () => {
 
         <div className="px-3 py-2 text-[10px] font-black text-white/30 uppercase tracking-widest mb-2 mt-6">Privacy & Tracking</div>
         
-        {/* 🚀 NEW: DIGITAL WELLBEING NAV BUTTON */}
         <button onClick={() => setActiveTab('wellbeing')} className={`flex items-center gap-3 px-4 py-3 rounded-full transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] text-sm font-bold w-full ${activeTab === 'wellbeing' ? 'bg-[#06b6d4]/20 text-[#06b6d4] shadow-[0_4px_15px_rgba(6,182,212,0.1)] scale-105' : 'text-white/50 hover:bg-white/5 hover:text-white active:scale-95'}`}><Activity size={16} /> Wellbeing</button>
 
       </div>
@@ -270,18 +255,23 @@ export const SettingsApp = () => {
           </div>
         )}
 
-        {/* 🛡️ 🚀 NEW: DIGITAL WELLBEING TAB */}
+        {/* 🛡️ 🚀 GOD-MODE DIGITAL WELLBEING TAB */}
         {activeTab === 'wellbeing' && (
           <div key="wellbeing" className="max-w-2xl animate-in fade-in slide-in-from-bottom-6 duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-3xl font-black flex items-center gap-3 tracking-tight">
                 <Activity className="text-[#06b6d4]" size={28} /> Digital Wellbeing
               </h2>
-              <button onClick={resetData} className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest text-white/40 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-full hover:bg-white/10 active:scale-95">
-                <RotateCcw className="w-3 h-3" /> Reset
-              </button>
+              
+              {/* 🚀 TAMPER-PROOF BADGE INSTEAD OF RESET BUTTON */}
+              <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest text-[#27c93f] bg-[#27c93f]/10 px-3 py-1.5 rounded-full border border-[#27c93f]/20 shadow-sm cursor-default">
+                <ShieldCheck className="w-3 h-3" /> Secure Vault
+              </div>
             </div>
-            <p className="text-white/40 text-sm mb-8 font-medium">Monitor your internet-connected screen time securely.</p>
+            
+            <p className="text-white/40 text-sm mb-8 font-medium">
+              Monitor your internet-connected screen time securely. <span className="text-[#ffbd2e]">Data is permanent and synced to the cloud for weekly analytics.</span>
+            </p>
             
             {/* TOTAL TIME WIDGET */}
             <div className="flex flex-col items-center justify-center py-10 px-6 bg-gradient-to-br from-[#06b6d4]/10 to-transparent rounded-[2rem] border border-[#06b6d4]/20 shadow-[0_0_40px_rgba(6,182,212,0.05)] mb-8 relative overflow-hidden group">
