@@ -4,15 +4,16 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/store/useOSStore';
 import { useUserStore } from '@/store/useUserStore'; 
-import { Folder, Terminal, PenTool, Image as ImageIcon, Settings, Activity } from 'lucide-react';
+import { Folder, Terminal, PenTool, Image as ImageIcon, Settings, Activity, Calculator } from 'lucide-react'; // 👈 Calculator Icon Import Kiya
 
-// 📌 TERA APP REGISTRY (Task Manager add kar diya)
+// 📌 TERA APP REGISTRY (Calculator App added)
 const OS_APPS = [
   { id: 'explorer', name: 'Hyper Drive', icon: Folder, color: 'text-[#52d9ff]' },
   { id: 'terminal', name: 'Terminal', icon: Terminal, color: 'text-green-400' },
   { id: 'notes', name: 'Note-Mate', icon: PenTool, color: 'text-yellow-400' },
   { id: 'canvas', name: 'Neural Canvas', icon: ImageIcon, color: 'text-[#8d6bff]' },
   { id: 'taskmanager', name: 'Task Manager', icon: Activity, color: 'text-[#ff5f56]' }, 
+  { id: 'calculator', name: 'Calculator', icon: Calculator, color: 'text-lime-400' }, // 👈 Naya Calculator App
   { id: 'settings', name: 'Settings', icon: Settings, color: 'text-gray-300' },
 ];
 

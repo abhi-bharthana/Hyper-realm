@@ -1,0 +1,46 @@
+services:
+  # ==========================================
+  # MATRIX INFRASTRUCTURE WATCHDOGS
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hyper-realm-prometheus-1
+    profiles: ["dev-extra"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./services/matrix-infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1d'
+    networks:
+      - hyper-realm-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hyper-realm-grafana-1
+    profiles: ["dev-extra"]
+    ports:
+      - "3005:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - hyper-realm-net
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: hyper-realm-alertmanager-1
+    profiles: ["dev-extra"]
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./services/matrix-infra/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    networks:
+      - hyper-realm-net

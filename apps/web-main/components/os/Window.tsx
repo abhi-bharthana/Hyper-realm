@@ -11,8 +11,6 @@ export const Window = ({ id, children }: { id: string; children: React.ReactNode
   
   const [isInteracting, setIsInteracting] = useState(false);
 
-  // 🗑️ THE BUGGY USE-EFFECT HAS BEEN COMPLETELY REMOVED!
-
   if (!win || win.isMinimized) return null; 
 
   const resizeHandleStyles = {
@@ -29,10 +27,7 @@ export const Window = ({ id, children }: { id: string; children: React.ReactNode
   return (
     <Rnd
       size={{ width: win.isMaximized ? '100%' : win.width, height: win.isMaximized ? '100%' : win.height }}
-      
-      // 🔥 THE STACK FIX: Simple Math.max use kiya hai. Koi complex window.innerHeight ki zaroorat nahi.
       position={{ x: win.isMaximized ? 0 : win.x, y: win.isMaximized ? 0 : Math.max(0, Number(win.y) || 50) }}
-      
       minWidth={400}
       minHeight={300}
       bounds="window" 
@@ -68,14 +63,16 @@ export const Window = ({ id, children }: { id: string; children: React.ReactNode
         willChange: isInteracting ? 'transform, width, height' : 'auto' 
       }}
       
+      // 🚀 YAHAN BHI FIX HAI: overflow-hidden zaroori hai taaki app rounded corners se bahar na nikle
       className={`flex flex-col overflow-hidden border border-white/10 ${
         isInteracting 
           ? 'bg-[#12121a]/95 shadow-xl' 
           : 'backdrop-blur-3xl bg-black/40 shadow-[0_20px_60px_rgba(0,0,0,0.5)]'
       } ${
-        win.isMaximized ? 'rounded-none transition-all duration-300 ease-in-out' : 'rounded-[24px]'
+        win.isMaximized ? 'rounded-none transition-all duration-300 ease-in-out' : 'rounded-2xl'
       }`}
     >
+      {/* 🟢 TITLE BAR: Exact 32px height (h-8) */}
       <div 
         className="drag-handle h-8 bg-white/[0.02] border-b border-white/5 flex items-center px-3 cursor-grab active:cursor-grabbing shrink-0"
         onDoubleClick={() => toggleMaximize(id)} 
@@ -104,7 +101,8 @@ export const Window = ({ id, children }: { id: string; children: React.ReactNode
         <div className="w-20" />
       </div>
 
-      <div className={`flex-1 min-h-0 w-full h-full flex flex-col overflow-hidden relative ${isInteracting ? 'pointer-events-none select-none opacity-90' : ''}`}>
+      {/* 🚀 THE ULTIMATE FIX: Exact Mathematics -> h-[calc(100%-32px)] */}
+      <div className={`w-full h-[calc(100%-32px)] relative overflow-hidden bg-transparent ${isInteracting ? 'pointer-events-none select-none opacity-90' : ''}`}>
         {children}
       </div>
     </Rnd>

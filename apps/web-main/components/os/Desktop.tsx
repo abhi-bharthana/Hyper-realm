@@ -10,6 +10,9 @@ import { ContextMenu } from '@/components/os/ContextMenu';
 import { TopBar } from '@/components/os/TopBar';
 import { TaskManager } from '@/components/os/apps/TaskManager'; 
 import { SettingsApp } from '@/components/os/apps/SettingsApp';
+import CalculatorApp from '@/components/os/apps/CalculatorApp'; 
+import { NeuralCanvasApp } from '@/components/os/apps/NeuralCanvasApp'; 
+import { WellbeingTracker } from '@/components/os/WellbeingTracker'; // 👈 Wellbeing Tracker Import Kiya
 
 const DriveDashboard = dynamic(
   () => import('@/components/Drive/DriveDashboard').then((mod) => mod.DriveDashboard),
@@ -58,6 +61,9 @@ export const Desktop = () => {
   return (
     <div className="relative w-full h-full overflow-hidden bg-black" onContextMenu={handleContextMenu}>
       
+      {/* 🚀 INVISIBLE DAEMON RUNNING IN BACKGROUND */}
+      <WellbeingTracker /> 
+
       {wallpaper === 'default' ? (
         <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-br from-[#030305] to-[#12121a]">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#8d6bff]/10 rounded-full blur-[120px]" />
@@ -80,8 +86,9 @@ export const Desktop = () => {
               {w.appId === 'taskmanager' && <TaskManager />}
               {w.appId === 'terminal' && <div className="p-4 text-green-400 font-mono">root@hyper-realm:~# _</div>}
               {w.appId === 'notes' && <div className="p-4 text-white">Note-Mate Editor Load Hoga...</div>}
-              {w.appId === 'canvas' && <div className="p-4 text-white">Neural Canvas Workspace...</div>}
+              {w.appId === 'canvas' && <NeuralCanvasApp />} 
               {w.appId === 'settings' && <SettingsApp />}
+              {w.appId === 'calculator' && <CalculatorApp />} 
             </Window>
           </div>
         ))}

@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation"; // 🚀 Next.js routing utils import kiye
+import { useRouter, usePathname } from "next/navigation"; 
 import { useThemeStore } from "@/store/useThemeStore";
+import { useOSStore } from "@/store/useOSStore"; // 🚀 Naya Import: OS Store
 import { Loader2 } from "lucide-react";
 import GlobalChatWindow from "@/components/Chat/GlobalChatWindow"; 
 
 export function AppWrapper({ children }: { children: React.ReactNode }) {
-  const { theme, syncWithCloud } = useThemeStore();
+  // Alias de diya 'syncThemeWithCloud' taaki confusion na ho
+  const { theme, syncWithCloud: syncThemeWithCloud } = useThemeStore();
   const [isHydrated, setIsHydrated] = useState(false);
   const router = useRouter();
-  const pathname = usePathname(); // 🚀 Active route extract karne ke liye
+  const pathname = usePathname(); 
 
   // 1. Safe Initial Sync: Routing boundaries ke mutabik state control
   useEffect(() => {
@@ -37,17 +39,20 @@ export function AppWrapper({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        // Safe Execution inside try-catch taaki network error par application stall na ho
-        await syncWithCloud();
+        // 🚀 DUAL CLOUD SYNC: Ab Theme aur OS dono ka data backend (Postgres) se aayega
+        await Promise.all([
+          syncThemeWithCloud(),
+          useOSStore.getState().syncWithCloud() // Zustand ka direct access bina dependency loop ke
+        ]);
       } catch (err) {
-        console.error("⚠️ System Note: Settings cloud sync bypassed or deferred during link hydration.");
+        console.error("⚠️ System Note: Settings or OS cloud sync bypassed or deferred during link hydration.");
       } finally {
         setIsHydrated(true); 
       }
     };
 
     triggerSync();
-  }, [syncWithCloud, pathname, router]);
+  }, [syncThemeWithCloud, pathname, router]);
 
   // 2. Theme Applier Engine (Fully Preserved & Optimized)
   useEffect(() => {
