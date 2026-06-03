@@ -29,8 +29,13 @@ func ConnectDB() {
 	// 🔥 THE MAGIC: Auto Migrate (Agar table nahi hai, toh khud banayega)
 	log.Println("🚀 Running Auto-Migrations...")
 
-	// 🚀 NAYA ADDITION: OSState ke saath CalculatorHistory ko bhi add kar diya
-	err = db.AutoMigrate(&models.OSState{}, &models.CalculatorHistory{})
+	// 🚀 NAYA ADDITION: OSState aur CalculatorHistory ke saath WellbeingState ko bhi add kar diya!
+	err = db.AutoMigrate(
+		&models.OSState{},
+		&models.CalculatorHistory{},
+		&models.WellbeingState{},
+	)
+
 	if err != nil {
 		log.Fatal("❌ Migration failed! \n", err)
 	}

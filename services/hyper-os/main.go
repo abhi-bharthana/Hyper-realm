@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors" // 👈 CORS Import kiya
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 )
@@ -33,6 +34,13 @@ func main() {
 	app := fiber.New()
 	app.Use(logger.New())
 
+	// 🚀 CORS FIX: Ab frontend (Port 3000) ko Port 4000 par hit block nahi milega
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
+	}))
+
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "hyper-os is live ⚡"})
 	})
@@ -47,11 +55,17 @@ func main() {
 	api.Post("/os", handlers.SyncOSState)
 
 	// ==========================================
-	// 🧮 CALCULATOR APP ROUTES (Naya Add Kiya)
+	// 🧮 CALCULATOR APP ROUTES
 	// ==========================================
 	api.Get("/os/calculator/history", handlers.GetCalculatorHistory)
 	api.Post("/os/calculator/history", handlers.SaveCalculation)
 	api.Delete("/os/calculator/history", handlers.ClearCalculatorHistory)
+
+	// ==========================================
+	// 🛡️ WELLBEING STATE ROUTES
+	// ==========================================
+	api.Get("/os/wellbeing", handlers.GetWellbeingState)
+	api.Post("/os/wellbeing", handlers.SyncWellbeingState)
 
 	port := os.Getenv("PORT")
 	if port == "" {
