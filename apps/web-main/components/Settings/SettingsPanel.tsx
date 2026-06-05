@@ -8,7 +8,7 @@ import { X, LogOut } from "lucide-react";
 import { ProfileSync } from "./segments/ProfileSync";
 import { StorageAccess } from "./segments/StorageAccess";
 import { AppearanceMode } from "./segments/AppearanceMode";
-import { DashboardModules } from "./segments/DashboardModules";
+import DashboardModules from "./segments/DashboardModules";
 
 export function SettingsPanel() {
   const { theme, isSettingsOpen, toggleSettings } = useThemeStore();

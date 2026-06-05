@@ -48,29 +48,50 @@
 .ProseMirror { outline: none !important; }
 
 /* ==========================================
-   🚀 THE PREMIUM HYPER-OS SCROLLBAR
+   🚀 HYPER-OS GLOBAL SCROLLBAR ENGINE
    ========================================== */
-.sleek-scroll {
-  scrollbar-width: thin; /* Firefox ke liye */
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+/* Firefox Support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
-.sleek-scroll::-webkit-scrollbar {
+/* Webkit (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.sleek-scroll::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+/* Scrollbar Thumb - Frosted Glass Pill */
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  border: 2px solid transparent; 
+  background-clip: padding-box; /* Ensures the border acts as transparent padding */
+}
+
+/* Hover Effect - Hyper OS Neon Cyan Glow */
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(82, 217, 255, 0.5); /* #52d9ff */
+}
+
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-.sleek-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  border: 2px solid transparent; /* Padding effect banata hai */
-  background-clip: padding-box;
+/* ==========================================
+   🥷 UTILITY CLASS: INVISIBLE SCROLLBAR
+   ========================================== */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
-
-.sleek-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

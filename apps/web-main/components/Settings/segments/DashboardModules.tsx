@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Zap, Clock, Newspaper } from "lucide-react";
 import { useThemeStore } from "@/store/useThemeStore";
 
-export function DashboardModules() {
+export default function DashboardModules() {
   const { theme, showClock, setShowClock, showNews, setShowNews, isMagicPillVisible, toggleMagicPill } = useThemeStore();
   const isLight = theme?.id === 'light-verdant' || theme?.type === 'light';
 
