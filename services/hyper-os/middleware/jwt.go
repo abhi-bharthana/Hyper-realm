@@ -34,7 +34,15 @@ func JWTProtected() fiber.Handler {
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		// Token Parse aur Verify kar rahe hain
+		// 🚀 THE GOD-LEVEL DEV BYPASS (Master Key)
+		// Jab tak production auth ready nahi hai, ye test-token OS ko zinda rakhega
+		if tokenString == "test-token" {
+			// Ek fixed dummy user ID inject kar rahe hain DB relation ke liye
+			c.Locals("hyperID", "dev_hyper_user_001")
+			return c.Next()
+		}
+
+		// Token Parse aur Verify kar rahe hain (For Real Production JWTs)
 		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 			if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
 				return nil, fmt.Errorf("unexpected signing method")

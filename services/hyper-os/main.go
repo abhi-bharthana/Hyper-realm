@@ -1,11 +1,12 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"hyper-os/database"
 	"hyper-os/handlers"
 	"hyper-os/middleware"
-	"log"
-	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors" // 👈 CORS Import kiya
@@ -54,6 +55,10 @@ func main() {
 	api.Get("/os", handlers.GetOSState)
 	api.Post("/os", handlers.SyncOSState)
 
+	// 🚀 NAYA: WIDGET ENGINE ROUTES
+	api.Get("/os/widgets", handlers.GetWidgets)
+	api.Post("/os/widgets/sync", handlers.SyncWidgets)
+
 	// ==========================================
 	// 🧮 CALCULATOR APP ROUTES
 	// ==========================================
@@ -65,7 +70,20 @@ func main() {
 	// 🛡️ WELLBEING STATE ROUTES
 	// ==========================================
 	api.Get("/os/wellbeing", handlers.GetWellbeingState)
-	api.Post("/os/wellbeing", handlers.SyncWellbeingState)
+	api.Post("/os/wellbeing/telemetry", handlers.SyncWellbeingState)
+
+	// ==========================================
+	// 📂 HYPER DRIVE (VFS ENGINE) ROUTES
+	// ==========================================
+	api.Get("/storage/files", handlers.GetFileSystem)
+	api.Post("/storage/folder/create", handlers.CreateFolder)
+	api.Delete("/storage/folder/purge", handlers.PurgeFolder)
+	api.Delete("/storage/asset/remove", handlers.RemoveAsset)
+
+	// ==========================================
+	// 🔒 SECURITY & PRIVACY ROUTES
+	// ==========================================
+	api.Post("/os/permissions/toggle", handlers.TogglePermission)
 
 	port := os.Getenv("PORT")
 	if port == "" {

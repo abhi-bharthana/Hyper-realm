@@ -4,38 +4,45 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/store/useOSStore';
 import { useUserStore } from '@/store/useUserStore'; 
-import { Folder, Terminal, PenTool, Image as ImageIcon, Settings, Activity, Calculator, LayoutGrid } from 'lucide-react'; // 👈 LayoutGrid for Start Button
-import StartMenuWrapper from './StartMenu/StartMenuWrapper'; // 👈 Tera naya Start Menu import kiya
+import { LayoutGrid } from 'lucide-react'; 
+import StartMenuWrapper from './StartMenu/StartMenuWrapper'; 
 
-// 📌 TERA APP REGISTRY 
-const OS_APPS = [
-  { id: 'explorer', name: 'Hyper Drive', icon: Folder, color: 'text-[#52d9ff]' },
-  { id: 'terminal', name: 'Terminal', icon: Terminal, color: 'text-green-400' },
-  { id: 'notes', name: 'Note-Mate', icon: PenTool, color: 'text-yellow-400' },
-  { id: 'canvas', name: 'Neural Canvas', icon: ImageIcon, color: 'text-[#8d6bff]' },
-  { id: 'taskmanager', name: 'Task Manager', icon: Activity, color: 'text-[#ff5f56]' }, 
-  { id: 'calculator', name: 'Calculator', icon: Calculator, color: 'text-lime-400' }, 
-  { id: 'settings', name: 'Settings', icon: Settings, color: 'text-gray-300' },
-];
+// 🚀 CENTRAL REGISTRY IMPORT
+import { SYSTEM_APPS } from '@/config/apps.config';
 
 export const Dock = () => {
-  const { windows, openApp } = useOSStore();
+  const { windows, openApp, preferences: osPrefs } = useOSStore();
   
-  // 🚀 TERA NAYA START MENU STATE
   const [isStartMenuOpen, setIsStartMenuOpen] = useState(false);
   
-  // 🟢 GLOBALS TASTE THE PREFERENCES
-  const { preferences } = useUserStore();
-  const pos = preferences?.dockPosition || 'bottom';
+  const { preferences: userPrefs } = useUserStore();
+  const pos = userPrefs?.dockPosition || osPrefs?.dockPosition || 'bottom';
   const isVertical = pos === 'left' || pos === 'right';
 
-  // 🚀 SMART 3D HOVER ANIMATION (Edge se door bhagega)
+  // ==========================================
+  // 📱 DYNAMIC PINNED & OPEN APPS RESOLUTION
+  // ==========================================
+  
+  // 1. Fallback if LocalStorage cache overrides with undefined (Puraane cache ko handle karega)
+  const defaultPinned = ['explorer', 'terminal', 'notes', 'canvas', 'taskmanager', 'calculator', 'settings'];
+  const pinnedAppIds = osPrefs?.pinnedToDock?.length ? osPrefs.pinnedToDock : defaultPinned;
+
+  // 2. Jo windows currently open hain, unke IDs nikal lo
+  const openAppIds = windows.map((w) => w.appId);
+
+  // 3. Pinned + Open ko merge karo aur Set use karke duplicates hata do
+  const dockAppIds = Array.from(new Set([...pinnedAppIds, ...openAppIds]));
+
+  // 4. Final array of apps from Central Registry (filter Boolean removes any broken/undefined apps)
+  const dockApps = dockAppIds.map(id => SYSTEM_APPS[id]).filter(Boolean);
+
+  // ==========================================
+
   const hoverAnim = 
     pos === 'bottom' ? { y: -8, scale: 1.2 } : 
     pos === 'left' ? { x: 8, scale: 1.2 } : 
     { x: -8, scale: 1.2 };
 
-  // 🎯 SMART TOOLTIP POSITIONING
   let tooltipClass = "";
   if (pos === 'bottom') tooltipClass = "bottom-[calc(100%+20px)] left-1/2 -translate-x-1/2";
   if (pos === 'left') tooltipClass = "left-[calc(100%+20px)] top-1/2 -translate-y-1/2";
@@ -43,10 +50,8 @@ export const Dock = () => {
 
   return (
     <>
-      {/* 🚀 THE HYPER START MENU (Background mein hidden rahega jab tak click na ho) */}
       <StartMenuWrapper isOpen={isStartMenuOpen} onClose={() => setIsStartMenuOpen(false)} />
 
-      {/* 💎 GOD LEVEL GLASSMORPHISM PILL CONTAINER */}
       <motion.div 
         layout
         initial={{ opacity: 0, scale: 0.9 }}
@@ -78,7 +83,6 @@ export const Dock = () => {
             <LayoutGrid size={24} strokeWidth={2} />
           </motion.button>
 
-          {/* Active Indicator for Start Menu */}
           <div className={`absolute flex justify-center items-center pointer-events-none ${pos === 'bottom' ? '-bottom-2 w-full' : pos === 'left' ? '-left-2 h-full flex-col' : '-right-2 h-full flex-col'}`}>
             <AnimatePresence>
               {isStartMenuOpen && (
@@ -93,25 +97,23 @@ export const Dock = () => {
           </div>
         </div>
 
-        {/* ➖ SEPARATOR / DIVIDER */}
         <div className={`bg-white/10 rounded-full ${isVertical ? 'w-6 h-[2px] my-1' : 'w-[2px] h-6 mx-1'}`} />
 
         {/* ==========================================
-            📱 2. PINNED OS APPS
+            📱 2. PINNED & OPEN OS APPS
             ========================================== */}
-        {OS_APPS.map((app) => {
+        {dockApps.map((app) => {
+          // Check if the app is currently open
           const isOpen = windows.some((w) => w.appId === app.id);
           const Icon = app.icon;
 
           return (
             <div key={app.id} className="relative group flex items-center justify-center">
               
-              {/* Tooltip */}
               <div className={`absolute ${tooltipClass} px-3 py-1.5 bg-black/80 backdrop-blur-xl text-white text-[10px] font-bold uppercase tracking-widest rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none border border-white/10 whitespace-nowrap shadow-xl scale-90 group-hover:scale-100 origin-center z-[200]`}>
                 {app.name}
               </div>
 
-              {/* App Icon Button */}
               <motion.button
                 layout
                 whileHover={hoverAnim}
@@ -119,7 +121,11 @@ export const Dock = () => {
                 onClick={() => openApp(app.id, app.name)}
                 className={`relative w-12 h-12 flex items-center justify-center rounded-[1.25rem] bg-white/5 hover:bg-white/15 transition-colors border border-white/5 shadow-sm group-hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] ${app.color}`}
               >
-                <Icon size={24} strokeWidth={1.5} />
+                {typeof Icon === 'string' ? (
+                  <img src={Icon} alt={app.name} className="w-6 h-6 object-contain" />
+                ) : (
+                  <Icon size={24} strokeWidth={1.5} />
+                )}
               </motion.button>
 
               {/* Active App Indicator */}

@@ -1,17 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { api, API_URLS } from '@/lib/api'; // 👈 API module import for Cloud Sync
-
-const APP_CONFIGS: Record<string, { width: number; height: number }> = {
-  explorer: { width: 1050, height: 700 },
-  terminal: { width: 750, height: 450 },
-  notes: { width: 900, height: 600 },
-  canvas: { width: 1100, height: 750 },
-  settings: { width: 600, height: 500 },
-  taskmanager: { width: 600, height: 400 },
-  calculator: { width: 380, height: 600 }, // 👈 Calculator App Add Kiya
-  default: { width: 800, height: 600 }
-};
+import { api, API_URLS } from '@/lib/api'; 
+import { SYSTEM_APPS } from '@/config/apps.config'; // 👈 Central Registry Import
 
 export interface WindowState {
   id: string;
@@ -39,18 +29,21 @@ export interface OSPreferences {
   dockPosition: string;
   dockAutoHide: boolean;
   wallpaper: string;
+  pinnedToDock: string[]; // 👈 NEW: Cloud-synced pinned dock apps
+  pinnedToStart: string[]; // 👈 NEW: Cloud-synced pinned start menu apps
 }
 
 interface OSStore {
   windows: WindowState[];
   activeZIndex: number;
+  recentApps: string[]; // 👈 NAYA: Track recent apps
   
   // ☁️ Cloud Synced States
   profile: OSProfile;
   preferences: OSPreferences;
 
   // Window Actions 
-  openApp: (appId: string, title: string) => void;
+  openApp: (appId: string, title?: string) => void;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string) => void;
   toggleMaximize: (id: string) => void;
@@ -69,6 +62,7 @@ export const useOSStore = create<OSStore>()(
     (set, get) => ({
       windows: [],
       activeZIndex: 10,
+      recentApps: [], // 👈 Initialize empty array
       
       // Default Fallback State
       profile: {
@@ -82,18 +76,25 @@ export const useOSStore = create<OSStore>()(
         dockPosition: 'bottom',
         dockAutoHide: false,
         wallpaper: 'default-hyper.jpg',
+        // 📌 Default pinned apps IDs
+        pinnedToDock: ['explorer', 'terminal', 'notes', 'canvas', 'taskmanager', 'calculator', 'settings'],
+        pinnedToStart: ['explorer', 'settings', 'canvas', 'calculator'],
       },
 
       // ==========================================
       // 🪟 WINDOW MANAGEMENT LOGIC 
       // ==========================================
       openApp: (appId, title) => {
-        const { windows, activeZIndex } = get();
+        const { windows, activeZIndex, recentApps } = get();
         const existingWindow = windows.find((w) => w.appId === appId);
+
+        // 🚀 NAYA: Recent apps logic (Jo app khuli usko list ke top par daalo, aur duplicates hatao)
+        const updatedRecents = [appId, ...recentApps.filter(id => id !== appId)].slice(0, 6); // Max 6 apps track karenge
 
         if (existingWindow) {
           set({
             activeZIndex: activeZIndex + 1,
+            recentApps: updatedRecents, // 👈 Save to recents
             windows: windows.map((w) =>
               w.appId === appId ? { ...w, isMinimized: false, zIndex: activeZIndex + 1 } : w
             ),
@@ -101,12 +102,15 @@ export const useOSStore = create<OSStore>()(
           return;
         }
 
-        const config = APP_CONFIGS[appId] || APP_CONFIGS.default;
+        // 🚀 Fetch config dynamically from Central Registry
+        const appDefinition = SYSTEM_APPS[appId];
+        const config = appDefinition?.config || { width: 800, height: 600 };
+        const windowTitle = title || appDefinition?.name || 'Unknown App';
         
         const newWindow: WindowState = {
           id: `${appId}-${Date.now()}`,
           appId,
-          title,
+          title: windowTitle,
           isOpen: true,
           isMinimized: false,
           isMaximized: false,
@@ -120,6 +124,7 @@ export const useOSStore = create<OSStore>()(
         set({
           windows: [...windows, newWindow],
           activeZIndex: activeZIndex + 1,
+          recentApps: updatedRecents, // 👈 Save to recents when new app opens
         });
       },
 
@@ -190,12 +195,13 @@ export const useOSStore = create<OSStore>()(
       name: 'hyper-os-windows',
       skipHydration: true,
       
-      // 🚀 F5 (REFRESH) FIX: windows aur activeZIndex ko localStorage mein save hone diya.
+      // 🚀 F5 (REFRESH) FIX: Persistence logic
       partialize: (state) => ({ 
         windows: state.windows,
         activeZIndex: state.activeZIndex,
         profile: state.profile,
-        preferences: state.preferences
+        preferences: state.preferences, // 👈 pinnedToDock wagera sab ab automatically yahan se save/load hoga
+        recentApps: state.recentApps // 👈 Isko localStorage mein save hone de taaki reload pe na ude
       }),
     }
   )

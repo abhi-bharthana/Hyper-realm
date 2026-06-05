@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useThemeStore } from "@/store/useThemeStore";
 import { Grid, List, Search } from "lucide-react";
 
@@ -9,21 +9,34 @@ import { StorageStats } from "./segments/StorageStats";
 import { FileListTable } from "./segments/FileListTable";
 import { UploadZone } from "./segments/UploadZone"; 
 import { NotesStorageCard } from "./segments/NotesStorageCard";
+import { ActivityTimeline } from "./segments/ActivityTimeline"; 
+import { useVFSStore } from "@/store/useVFSStore"; // 🚀 VFS IMPORT KIYA STORAGE CALC KE LIYE
 
-// 1️⃣ Naya Prop add kiya taaki OS ka pata chal sake
 interface DriveDashboardProps {
   isOSMode?: boolean;
 }
 
-export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
+export const DriveDashboard: React.FC<DriveDashboardProps> = ({ isOSMode = false }) => {
   const { theme } = useThemeStore();
+  const { nodes } = useVFSStore(); // 🚀 OS Data Store
   
-  // 🔥 2️⃣ MAGIC FIX: Agar OS mode hai, toh hamesha Dark (isLight = false) rakho. Warna global theme!
   const isLight = isOSMode ? false : (theme === 'light-verdant' || theme === 'light');
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState("");
-  const [usedStorageBytes, setUsedStorageBytes] = useState<number>(0);
+  const [usedStorageBytes, setUsedStorageBytes] = useState<number>(0); // Backend data
+
+  // 🧠 MAGIC: CALC OS (VFS) DATA SIZE IN REAL-TIME O(N)
+  const vfsTotalBytes = useMemo(() => {
+    let total = 0;
+    Object.values(nodes).forEach(node => {
+      // Sirf actual files ka size calculate karenge (folders 0 size lete hain logic wise)
+      if (node.type === 'file') {
+        total += (node.size || 0);
+      }
+    });
+    return total;
+  }, [nodes]);
 
   useEffect(() => {
     const handleMetricsSync = (e: Event) => {
@@ -41,8 +54,10 @@ export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
     setUsedStorageBytes(newUsageBytes); 
   };
 
+  // 🚀 COMBINED STORAGE (Backend API + Local OS VFS)
+  const totalCombinedStorage = usedStorageBytes + vfsTotalBytes;
+
   return (
-    // 👑 HYBRID LOCK WRAPPER (Tera exact same layout, no changes!)
     <div className={`
       relative lg:fixed lg:top-[80px] left-0 right-0 lg:bottom-0 
       w-full min-h-[calc(100vh-80px)] lg:min-h-0 
@@ -53,7 +68,6 @@ export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
       ${isOSMode ? 'text-white' : ''} 
     `}>
       
-      {/* CUSTOM SCROLLBAR FOR PANELS */}
       <style dangerouslySetInnerHTML={{__html: `
         .hyper-panel-scrollbar::-webkit-scrollbar { width: 4px; }
         .hyper-panel-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -63,11 +77,11 @@ export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
 
       <div className="w-full h-full max-w-[100vw] lg:max-w-[96vw] flex flex-col gap-4 lg:gap-5 overflow-visible lg:overflow-hidden">
         
-        {/* 👑 TITLE HEADER */}
+        {/* TITLE HEADER */}
         <div className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 px-2">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tighter uppercase italic flex items-center gap-3">
-              Hyper <span className="text-primary" style={{ color: theme?.primary }}>Drive</span>
+              Hyper <span className="text-[#52d9ff]" style={!isOSMode ? { color: theme?.primary } : {}}>Drive</span>
             </h1>
             <p className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-widest ${isLight ? 'text-slate-400 font-bold' : 'text-zinc-500'}`}>
               Distributed Cloud Storage Node Engine
@@ -75,36 +89,30 @@ export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
           </div>
         </div>
 
-        {/* 🚀 Mobile-only Upload Zone */}
+        {/* Mobile-only Upload Zone */}
         <div className="block lg:hidden w-full shrink-0 px-2">
-          <UploadZone 
-            isLight={isLight} 
-            onUploadSuccess={handleUploadSuccess} 
-          />
+          <UploadZone isLight={isLight} onUploadSuccess={handleUploadSuccess} />
         </div>
 
-        {/* 👑 CORE GRID SYSTEM */}
+        {/* CORE GRID SYSTEM */}
         <div className="w-full h-auto lg:h-full flex flex-col lg:grid lg:grid-cols-4 gap-6 lg:gap-8 items-start overflow-visible lg:overflow-hidden pb-4">
           
-          {/* 🚀 LEFT COLUMN: Analytics & Stats */}
+          {/* LEFT COLUMN: Analytics & Stats */}
           <div className="lg:col-span-1 flex flex-col gap-4 lg:gap-5 w-full h-auto lg:h-full overflow-visible lg:overflow-y-auto hyper-panel-scrollbar pr-0 lg:pr-2 lg:pb-10 order-last lg:order-none">
             
-            {/* Desktop-only Upload Zone */}
             <div className="hidden lg:block">
-              <UploadZone 
-                isLight={isLight} 
-                onUploadSuccess={handleUploadSuccess} 
-              />
+              <UploadZone isLight={isLight} onUploadSuccess={handleUploadSuccess} />
             </div>
-
-            <StorageStats 
-              isLight={isLight} 
-              customUsedBytes={usedStorageBytes} 
-            />
+            
+            {/* 🚀 YAHAN COMBINED STORAGE PASS KIYA HAI */}
+            <StorageStats isLight={isLight} customUsedBytes={totalCombinedStorage} />
+            
             <NotesStorageCard isLight={isLight} />
+            
+            <ActivityTimeline userId="abhishek-babu-node" isLight={isLight} /> 
           </div>
 
-          {/* 🚀 RIGHT COLUMN: Directory Browsing Console */}
+          {/* RIGHT COLUMN: Directory Browsing Console */}
           <div className={`lg:col-span-3 
             h-[75vh] lg:h-full 
             border rounded-3xl lg:rounded-[2.5rem] 
@@ -132,15 +140,13 @@ export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
               <div className="flex items-center justify-end w-full sm:w-auto gap-1.5">
                 <button 
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-xl transition-all active:scale-90 ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'opacity-40'}`}
-                  style={viewMode === 'grid' ? { color: theme?.primary, backgroundColor: `${theme?.primary}1a` } : {}}
+                  className={`p-2 rounded-xl transition-all active:scale-90 ${viewMode === 'grid' ? 'bg-[#52d9ff]/10 text-[#52d9ff]' : 'opacity-40'}`}
                 >
                   <Grid className="w-4 h-4" />
                 </button>
                 <button 
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-xl transition-all active:scale-90 ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'opacity-40'}`}
-                  style={viewMode === 'list' ? { color: theme?.primary, backgroundColor: `${theme?.primary}1a` } : {}}
+                  className={`p-2 rounded-xl transition-all active:scale-90 ${viewMode === 'list' ? 'bg-[#52d9ff]/10 text-[#52d9ff]' : 'opacity-40'}`}
                 >
                   <List className="w-4 h-4" />
                 </button>
@@ -158,4 +164,6 @@ export function DriveDashboard({ isOSMode = false }: DriveDashboardProps) {
       </div>
     </div>
   );
-}
+};
+
+export default DriveDashboard;

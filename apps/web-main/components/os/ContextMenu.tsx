@@ -2,8 +2,11 @@
 
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderPlus, RefreshCw, Image as ImageIcon, Settings, LayoutGrid } from 'lucide-react';
+// 🚀 NAYA IMPORT: 'Layers' icon add kiya widgets ke liye
+import { FolderPlus, RefreshCw, Image as ImageIcon, Settings, LayoutGrid, Layers } from 'lucide-react'; 
 import { useOSStore } from '@/store/useOSStore';
+// 🚀 NAYA IMPORT: Widget Store ko menu se connect karne ke liye
+import { useWidgetStore } from '@/store/useWidgetStore'; 
 
 interface ContextMenuProps {
   x: number;
@@ -14,6 +17,9 @@ interface ContextMenuProps {
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, isOpen, onClose }) => {
   const { openApp } = useOSStore();
+  
+  // 🚀 NAYA: Edit mode toggle function pull kar liya
+  const { setEditMode } = useWidgetStore();
 
   // Screen click pe menu close karne ka logic
   useEffect(() => {
@@ -27,6 +33,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, isOpen, onClose 
   // Menu items array (Easy to manage)
   const menuItems = [
     { label: 'New Folder', icon: FolderPlus, action: () => console.log('New Folder Created'), divider: true },
+    
+    // 🔮 THE WIDGET TRIGGER
+    { label: 'Edit Widgets', icon: Layers, action: () => setEditMode(true) }, 
+    
     { label: 'Change Wallpaper', icon: ImageIcon, action: () => console.log('Wallpaper settings') },
     { label: 'Auto Arrange', icon: LayoutGrid, action: () => console.log('Arranging icons'), divider: true },
     { label: 'Refresh', icon: RefreshCw, action: () => window.location.reload() },

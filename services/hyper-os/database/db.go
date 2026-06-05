@@ -34,6 +34,10 @@ func ConnectDB() {
 		&models.OSState{},
 		&models.CalculatorHistory{},
 		&models.WellbeingState{},
+		&models.VFSNode{},
+		&models.SystemPermission{},
+		&models.AuditLog{},
+		&models.WidgetState{},
 	)
 
 	if err != nil {

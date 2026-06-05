@@ -1,18 +1,43 @@
-import React, { useState } from 'react';
-import { Terminal, PenTool, Image as ImageIcon, Settings, Activity, Calculator, FolderOpen, ChevronLeft, ShieldCheck, Edit2 } from 'lucide-react';
-import { useOSStore } from '@/store/useOSStore';
-import StackApp from './stacks/StackApp';
+'use client';
 
-// 📌 TERA FULL SYSTEM APP REGISTRY
-export const SYSTEM_APPS = [
-  { id: 'explorer', name: 'Hyper Drive', icon: <FolderOpen size={24} className="text-[#52d9ff]" />, color: 'bg-[#52d9ff]/10 hover:bg-[#52d9ff]/20' },
-  { id: 'terminal', name: 'Terminal', icon: <Terminal size={24} className="text-green-400" />, color: 'bg-green-500/10 hover:bg-green-500/20' },
-  { id: 'notes', name: 'Note-Mate', icon: <PenTool size={24} className="text-yellow-400" />, color: 'bg-yellow-500/10 hover:bg-yellow-500/20' },
-  { id: 'canvas', name: 'Neural Canvas', icon: <ImageIcon size={24} className="text-[#8d6bff]" />, color: 'bg-[#8d6bff]/10 hover:bg-[#8d6bff]/20' },
-  { id: 'taskmanager', name: 'Task Manager', icon: <Activity size={24} className="text-[#ff5f56]" />, color: 'bg-[#ff5f56]/10 hover:bg-[#ff5f56]/20' },
-  { id: 'calculator', name: 'Calculator', icon: <Calculator size={24} className="text-lime-400" />, color: 'bg-lime-500/10 hover:bg-lime-500/20' },
-  { id: 'wellbeing', name: 'Wellbeing', icon: <Activity size={24} className="text-[#06b6d4]" />, color: 'bg-[#06b6d4]/10 hover:bg-[#06b6d4]/20' },
-  { id: 'settings', name: 'Settings', icon: <Settings size={24} className="text-gray-300" />, color: 'bg-gray-500/10 hover:bg-gray-500/20' },
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ShieldCheck, Edit2, LayoutGrid } from 'lucide-react';
+import { useOSStore } from '@/store/useOSStore';
+import { SYSTEM_APPS } from '@/config/apps.config'; // 🚀 TERA CENTRAL REGISTRY
+
+// ==========================================
+// 📦 RECURSIVE DATA TYPES
+// ==========================================
+export type LayoutNode = 
+  | { type: 'app'; id: string }
+  | { type: 'stack'; id: string; name: string; items: LayoutNode[] };
+
+// 🚀 DEFAULT NESTED LAYOUT (To demonstrate Apple/Xiaomi style)
+const INITIAL_LAYOUT: LayoutNode[] = [
+  { type: 'app', id: 'explorer' },
+  { type: 'app', id: 'settings' },
+  {
+    type: 'stack',
+    id: 'creative_suite',
+    name: 'Creative Suite',
+    items: [
+      { type: 'app', id: 'canvas' },
+      { type: 'app', id: 'notes' },
+      {
+        // 🚀 STACK KE ANDAR STACK (Nested!)
+        type: 'stack',
+        id: 'dev_tools',
+        name: 'Dev Tools',
+        items: [
+          { type: 'app', id: 'terminal' },
+          { type: 'app', id: 'taskmanager' }
+        ]
+      }
+    ]
+  },
+  { type: 'app', id: 'calculator' },
+  { type: 'app', id: 'wellbeing' }
 ];
 
 interface PinnedAppsProps {
@@ -22,205 +47,203 @@ interface PinnedAppsProps {
   onClose: () => void;
 }
 
-type LayoutItem = { type: 'app', id: string } | { type: 'stack', id: string, name: string, apps: string[] };
+// ==========================================
+// 🧩 APPLE STYLE MINI GRID PREVIEW
+// ==========================================
+const MiniGridPreview = ({ items, level = 0 }: { items: LayoutNode[], level?: number }) => {
+  const previewItems = items.slice(0, 4); // Show only top 4
+  const radius = level === 0 ? 'rounded-[0.8rem]' : 'rounded-md';
+  const iconSize = level === 0 ? 14 : 8;
 
+  return (
+    <div className="grid grid-cols-2 gap-1 w-full h-full p-1.5">
+      {previewItems.map((item, idx) => {
+        if (item.type === 'app') {
+          const appDef = SYSTEM_APPS[item.id];
+          if (!appDef) return <div key={idx} className={`w-full h-full bg-white/10 ${radius}`} />;
+          const Icon = appDef.icon;
+          return (
+            <div key={idx} className={`w-full h-full flex items-center justify-center bg-black/40 ${appDef.color} ${radius} shadow-inner`}>
+               {typeof Icon === 'string' ? (
+                 <img src={Icon} alt={appDef.name} className="w-full h-full object-contain p-0.5" />
+               ) : (
+                 <Icon size={iconSize} strokeWidth={2.5} />
+               )}
+            </div>
+          );
+        } else {
+          // Recursive preview for nested stack
+          return (
+            <div key={idx} className={`w-full h-full bg-white/20 ${radius} overflow-hidden shadow-inner flex items-center justify-center`}>
+               <LayoutGrid size={iconSize} className="text-white/60" />
+            </div>
+          );
+        }
+      })}
+    </div>
+  );
+};
+
+// ==========================================
+// 📱 MAIN COMPONENT
+// ==========================================
 export default function PinnedApps({ searchQuery, showAllApps, setShowAllApps, onClose }: PinnedAppsProps) {
   const { openApp } = useOSStore();
+  const [layout, setLayout] = useState<LayoutNode[]>(INITIAL_LAYOUT);
   
-  // 🧩 STATE: Current Grid Layout (Initial state me sab alag apps hain)
-  const [layout, setLayout] = useState<LayoutItem[]>(
-    SYSTEM_APPS.map(app => ({ type: 'app', id: app.id }))
-  );
-
-  // 📂 STATE: Currently opened Stack (Agar null hai to Home view hai)
-  const [activeStack, setActiveStack] = useState<string | null>(null);
+  // 📂 BREADCRUMB NAVIGATION (Allows infinite nesting depth)
+  const [stackPath, setStackPath] = useState<LayoutNode[]>([]);
   const [dragTarget, setDragTarget] = useState<string | null>(null);
 
-  // 🛠️ DRAG AND DROP LOGIC
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    e.dataTransfer.setData('sourceId', id);
+  // 🔎 Helper: Get current level items based on navigation path
+  const getCurrentItems = () => {
+    if (stackPath.length === 0) return layout;
+    const currentFolder = stackPath[stackPath.length - 1];
+    return currentFolder.type === 'stack' ? currentFolder.items : [];
   };
 
-  const handleDragOver = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    setDragTarget(targetId);
-  };
-
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    setDragTarget(null);
-    const sourceId = e.dataTransfer.getData('sourceId');
-    if (sourceId === targetId) return;
-
-    setLayout(prev => {
-      const newLayout = [...prev];
-      const sourceIndex = newLayout.findIndex(item => item.id === sourceId);
-      const targetIndex = newLayout.findIndex(item => item.id === targetId);
-      
-      if (sourceIndex === -1 || targetIndex === -1) return prev;
-
-      const sourceItem = newLayout[sourceIndex];
-      const targetItem = newLayout[targetIndex];
-
-      // Sirf Apps ko hi utha sakte hain (Stack ke andar stack nahi banega)
-      if (sourceItem.type === 'app') {
-        // App dropped on App -> Create new Stack
-        if (targetItem.type === 'app') {
-          newLayout.splice(sourceIndex, 1); // Remove source
-          const updatedTargetIndex = newLayout.findIndex(item => item.id === targetId); // Recalculate index
-          newLayout[updatedTargetIndex] = {
-            type: 'stack',
-            id: `stack-${Date.now()}`,
-            name: 'New Folder',
-            apps: [targetItem.id, sourceItem.id]
-          };
-        } 
-        // App dropped on Stack -> Add to Stack
-        else if (targetItem.type === 'stack') {
-          newLayout.splice(sourceIndex, 1);
-          const updatedTargetIndex = newLayout.findIndex(item => item.id === targetId);
-          newLayout[updatedTargetIndex] = {
-            ...targetItem,
-            apps: [...targetItem.apps, sourceItem.id]
-          };
-        }
-      }
-      return newLayout;
-    });
-  };
+  const currentItems = getCurrentItems();
 
   // ----------------------------------------------------
   // 🪄 RENDER: SEARCH / ALL APPS VIEW
   // ----------------------------------------------------
   if (searchQuery || showAllApps) {
-    const filteredApps = SYSTEM_APPS.filter(app => app.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const allAppsList = Object.values(SYSTEM_APPS);
+    const filteredApps = allAppsList.filter(app => app.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    
     return (
-      <div className="mb-6">
-        <div className="flex items-center gap-2 px-2 mb-4">
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+        <div className="flex items-center gap-3 px-3 mb-5">
           {showAllApps && !searchQuery && (
-            <button onClick={() => setShowAllApps(false)} className="text-white/50 hover:text-white transition-colors"><ChevronLeft size={16} /></button>
+            <button onClick={() => setShowAllApps(false)} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors">
+              <ChevronLeft size={16} className="text-white/70" />
+            </button>
           )}
-          <h3 className="text-xs font-bold text-white/70 uppercase tracking-widest">{searchQuery ? 'Search Results' : 'All System Apps'}</h3>
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">{searchQuery ? 'Search Results' : 'All System Apps'}</h3>
         </div>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-4 place-items-center">
           {filteredApps.map(app => (
              <AppButton key={app.id} app={app} onClick={() => { openApp(app.id, app.name); onClose(); }} showBadge={true} />
           ))}
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   // ----------------------------------------------------
-  // 📂 RENDER: OPEN STACK VIEW
+  // 📂 RENDER: HOME OR STACK VIEW (Recursive & Navigable)
   // ----------------------------------------------------
-  if (activeStack) {
-    const stackData = layout.find(item => item.id === activeStack) as { type: 'stack', name: string, apps: string[] };
-    if (!stackData) return null;
-    
-    return (
-      <div className="mb-6 animate-in slide-in-from-right-4 duration-300">
-        <div className="flex items-center justify-between px-2 mb-4 bg-white/5 p-2 rounded-xl">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setActiveStack(null)} className="text-white/50 hover:text-white transition-colors bg-black/40 p-1.5 rounded-lg"><ChevronLeft size={16} /></button>
-            <input 
-              type="text" 
-              value={stackData.name}
-              onChange={(e) => {
-                setLayout(prev => prev.map(item => item.id === activeStack ? { ...item, name: e.target.value } : item));
-              }}
-              className="bg-transparent text-sm font-bold text-white focus:outline-none focus:border-b border-white/20 w-32"
-            />
-            <Edit2 size={12} className="text-white/30" />
-          </div>
+  const isRoot = stackPath.length === 0;
+  const currentStack = isRoot ? null : stackPath[stackPath.length - 1];
+
+  return (
+    <div className="mb-6 relative min-h-[300px]">
+      
+      {/* HEADER */}
+      <div className="flex items-center justify-between px-3 mb-5">
+        <div className="flex items-center gap-3">
+          {!isRoot && (
+            <button 
+              onClick={() => setStackPath(prev => prev.slice(0, -1))} 
+              className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/10 shadow-sm"
+            >
+              <ChevronLeft size={16} className="text-white/70" />
+            </button>
+          )}
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+            {isRoot ? 'Pinned Apps' : (
+              <>
+                {(currentStack as any).name} 
+                <Edit2 size={10} className="text-white/30 hover:text-white/70 cursor-pointer transition-colors" />
+              </>
+            )}
+          </h3>
         </div>
         
-        <div className="grid grid-cols-4 gap-3 bg-black/20 p-4 rounded-2xl border border-white/5 shadow-inner">
-          {stackData.apps.map(appId => {
-            const app = SYSTEM_APPS.find(a => a.id === appId);
-            if (!app) return null;
-            return <AppButton key={app.id} app={app} onClick={() => { openApp(app.id, app.name); onClose(); }} />;
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // ----------------------------------------------------
-  // 🏠 RENDER: HOME / PINNED VIEW (With Drag & Drop)
-  // ----------------------------------------------------
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between px-2 mb-4">
-        <h3 className="text-xs font-bold text-white/70 uppercase tracking-widest">Pinned Apps</h3>
-        <button onClick={() => setShowAllApps(true)} className="text-[10px] bg-white/5 hover:bg-white/10 text-white/50 px-2 py-1 rounded-full transition-colors font-semibold">
-          All apps {'>'}
-        </button>
+        {isRoot && (
+          <button onClick={() => setShowAllApps(true)} className="text-[10px] bg-white/5 hover:bg-white/10 text-[#52d9ff] px-3 py-1.5 rounded-full transition-all shadow-sm border border-white/5 font-bold uppercase tracking-wider">
+            All Apps
+          </button>
+        )}
       </div>
       
-      {/* 🚀 INCREASED GRID TO 4 COLUMNS */}
-      <div className="grid grid-cols-4 gap-3">
-        {layout.map((item) => {
-          if (item.type === 'app') {
-            const app = SYSTEM_APPS.find(a => a.id === item.id);
-            if (!app) return null;
-            return (
-              <div 
-                key={item.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, item.id)}
-                onDragOver={(e) => handleDragOver(e, item.id)}
-                onDrop={(e) => handleDrop(e, item.id)}
-                onDragLeave={() => setDragTarget(null)}
-              >
+      {/* GRID */}
+      <AnimatePresence mode="popLayout">
+        <motion.div 
+          key={isRoot ? 'root' : currentStack?.id}
+          initial={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 1.05, filter: 'blur(4px)' }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          className={`grid grid-cols-4 gap-y-6 gap-x-4 place-items-center ${!isRoot ? 'bg-white/5 p-6 rounded-[2.5rem] border border-white/10 shadow-inner backdrop-blur-md' : ''}`}
+        >
+          {currentItems.map((item) => {
+            if (item.type === 'app') {
+              const app = SYSTEM_APPS[item.id];
+              if (!app) return null;
+              return (
                 <AppButton 
+                  key={item.id} 
                   app={app} 
                   onClick={() => { openApp(app.id, app.name); onClose(); }} 
                   isDragOver={dragTarget === item.id} 
                 />
-              </div>
-            );
-          } else {
-            return (
-              <div
-                key={item.id}
-                onDragOver={(e) => handleDragOver(e, item.id)}
-                onDrop={(e) => handleDrop(e, item.id)}
-                onDragLeave={() => setDragTarget(null)}
-              >
-                <StackApp 
-                  name={item.name} 
-                  appIds={item.apps} 
-                  onClick={() => setActiveStack(item.id)} 
-                  isDragOver={dragTarget === item.id}
-                />
-              </div>
-            );
-          }
-        })}
-      </div>
+              );
+            } else {
+              // Render Stack Folder
+              return (
+                <motion.div 
+                  key={item.id}
+                  layoutId={`stack-${item.id}`}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setStackPath(prev => [...prev, item])}
+                  className="flex flex-col items-center gap-2 cursor-pointer group w-full"
+                >
+                  <div className="w-16 h-16 rounded-[1.5rem] bg-white/10 border border-white/20 shadow-lg backdrop-blur-md group-hover:bg-white/20 transition-all overflow-hidden relative">
+                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-50" />
+                     <MiniGridPreview items={item.items} />
+                  </div>
+                  <span className="text-[11px] font-medium text-gray-300 tracking-wide truncate w-full text-center">{item.name}</span>
+                </motion.div>
+              );
+            }
+          })}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
 
 // ----------------------------------------------------
-// 🧩 HELPER COMPONENT: Reusable App Button
+// 🧩 HELPER COMPONENT: Reusable App Button (Pill Design)
 // ----------------------------------------------------
 function AppButton({ app, onClick, showBadge, isDragOver }: { app: any, onClick: () => void, showBadge?: boolean, isDragOver?: boolean }) {
+  const Icon = app.icon;
+  
   return (
-    <button
+    <motion.button
+      layout
+      whileHover={{ scale: 1.05, y: -2 }}
+      whileTap={{ scale: 0.95 }}
       onClick={onClick}
-      className="flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group hover:bg-white/[0.03] active:scale-95 border border-transparent hover:border-white/5 w-full cursor-grab active:cursor-grabbing"
+      className="flex flex-col items-center justify-center rounded-[2rem] transition-all duration-300 group w-full cursor-pointer"
     >
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-2 shadow-inner border transition-all duration-300 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] ${app.color} ${isDragOver ? 'border-[#52d9ff] scale-110 bg-white/20' : 'border-white/5'}`}>
-        {app.icon}
+      <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center mb-2 shadow-lg backdrop-blur-md border transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] ${app.color} ${isDragOver ? 'border-[#52d9ff] scale-110 bg-white/20' : 'border-white/10 bg-white/5'}`}>
+        {typeof Icon === 'string' ? (
+          <img src={Icon} alt={app.name} className="w-8 h-8 object-contain drop-shadow-md" />
+        ) : (
+          <Icon size={28} strokeWidth={1.5} className="drop-shadow-md" />
+        )}
       </div>
-      <span className="text-[11px] font-medium text-white/80 group-hover:text-white transition-colors truncate w-full text-center">
+      <span className="text-[11px] font-medium text-gray-300 group-hover:text-white transition-colors truncate w-full text-center px-1">
         {app.name}
       </span>
       {showBadge && (
-        <span className="text-[8px] text-white/30 font-bold uppercase tracking-widest mt-1 flex items-center gap-1"><ShieldCheck size={8} /> System</span>
+        <span className="text-[8px] text-[#52d9ff] bg-[#52d9ff]/10 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest mt-1.5 flex items-center gap-1 border border-[#52d9ff]/20">
+          <ShieldCheck size={8} /> System
+        </span>
       )}
-    </button>
+    </motion.button>
   );
 }

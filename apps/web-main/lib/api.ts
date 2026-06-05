@@ -19,7 +19,7 @@ export const API_URLS = {
     ? `http://${window.location.hostname}:8080/api/v1` 
     : "http://127.0.0.1:8080/api/v1",      
     
-  STORAGE: getBaseUrl(), // 👈 YAHAN COMMA MISSING THA! 
+  STORAGE: getBaseUrl(), 
   
   // 🚀 DEV FIX: Bypass Nginx (8088), direct Hit Go Backend (4000) for OS & Wellbeing
   OS: typeof window !== "undefined" 
@@ -41,7 +41,7 @@ async function fetchClient(url: string, options: RequestInit = {}) {
 
   const response = await fetch(url, { ...options, headers });
 
-  // Global 401 Unauthorized Handler
+  // 🛡️ Global 401 Unauthorized Handler
   if (response.status === 401) {
     if (typeof window !== "undefined") {
       const currentPath = window.location.pathname;
@@ -50,7 +50,7 @@ async function fetchClient(url: string, options: RequestInit = {}) {
       if (currentPath === "/onboarding") {
         console.warn("⚠️ Background sync returned 401 during onboarding. Ignoring logout guard to prevent loops.");
       } else if (currentPath !== "/login" && currentPath !== "/register") {
-        console.warn("Session expired or invalid token. Redirecting to login...");
+        console.warn("⚠️ Session expired or invalid token. Redirecting to login...");
         localStorage.removeItem("hyper_id_token"); // Token sirf sahi mein expire hone par udayenge
         window.location.href = "/login";
       }
@@ -61,11 +61,28 @@ async function fetchClient(url: string, options: RequestInit = {}) {
   return response;
 }
 
+// 🚀 NAYA: Smart Response Parser (Keeps code DRY and handles empty/JSON errors cleanly)
+async function processResponse(res: Response) {
+  if (!res.ok) {
+    const errorText = await res.text();
+    try {
+      // JSON try karenge taaki humara "not_found" logic stores mein safely chalta rahe
+      const errorJson = JSON.parse(errorText);
+      throw new Error(JSON.stringify(errorJson)); 
+    } catch {
+      throw new Error(errorText || `HTTP Error ${res.status}`);
+    }
+  }
+  
+  // Safe parsing for empty responses (like 204 No Content)
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
+}
+
 export const api = {
   get: async (url: string, options?: RequestInit) => {
     const res = await fetchClient(url, { ...options, method: "GET" });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    return processResponse(res);
   },
   
   post: async (url: string, body?: any, options?: RequestInit) => {
@@ -74,26 +91,21 @@ export const api = {
       method: "POST", 
       body: body ? JSON.stringify(body) : undefined 
     });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    return processResponse(res);
   },
 
-  // 🚀 NAYA: DELETE method add kar diya hai
-  delete: async (url: string, options?: RequestInit) => {
-    const res = await fetchClient(url, { ...options, method: "DELETE" });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-  },
-
-  // 🚀 NAYA: PUT method for future updates
   put: async (url: string, body?: any, options?: RequestInit) => {
     const res = await fetchClient(url, { 
       ...options, 
       method: "PUT", 
       body: body ? JSON.stringify(body) : undefined 
     });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    return processResponse(res);
+  },
+
+  delete: async (url: string, options?: RequestInit) => {
+    const res = await fetchClient(url, { ...options, method: "DELETE" });
+    return processResponse(res);
   },
 
   raw: fetchClient
@@ -103,32 +115,22 @@ export const api = {
 // 🏷️ NATIVE OBJECT TAGGING ENGINE METHODS (Direct MinIO Mapping Metadata)
 // =========================================================================
 
-// 🎯 Save/Update Tags onto an asset node object
 export const saveAssetTags = async (objectKey: string, tags: string[]): Promise<any> => {
   try {
-    const response = await fetchClient(`${API_URLS.STORAGE}/storage/asset/tags`, {
-      method: "POST",
-      body: JSON.stringify({
-        object_key: objectKey,
-        tags: tags
-      })
+    // 🚀 Now utilizing the built-in api.post (Cleaner, No duplicate error handling)
+    return await api.post(`${API_URLS.STORAGE}/storage/asset/tags`, {
+      object_key: objectKey,
+      tags: tags
     });
-    if (!response.ok) throw new Error(await response.text());
-    return await response.json();
   } catch (error) {
     console.error("Tag Save Transaction Failure:", error);
     throw error;
   }
 };
 
-// 🎯 Fetch Tags array directly from MinIO object metadata blocks
 export const getAssetTags = async (objectKey: string): Promise<string[]> => {
   try {
-    const response = await fetchClient(`${API_URLS.STORAGE}/storage/asset/tags?object_key=${encodeURIComponent(objectKey)}`, {
-      method: "GET"
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
+    const data = await api.get(`${API_URLS.STORAGE}/storage/asset/tags?object_key=${encodeURIComponent(objectKey)}`);
     return data.tags || [];
   } catch (error) {
     console.error("Tag Fetch Transaction Failure:", error);
@@ -140,7 +142,6 @@ export const getAssetTags = async (objectKey: string): Promise<string[]> => {
 // 📊 ECOSYSTEM AUDIT LOGS TELEMETRY METHODS (Timeline Activity Engine)
 // =========================================================================
 
-// 🎯 Fetch dynamic audit mutation traces (Global stack or targeted object key filter)
 export const fetchAuditFootprints = async (userId: string, objectKey?: string): Promise<any[]> => {
   try {
     let url = `${API_URLS.STORAGE}/storage/audit/footprints?user_id=${encodeURIComponent(userId)}`;
@@ -148,10 +149,7 @@ export const fetchAuditFootprints = async (userId: string, objectKey?: string): 
       url += `&object_key=${encodeURIComponent(objectKey)}`;
     }
 
-    const response = await fetchClient(url, { method: "GET" });
-    if (!response.ok) return [];
-    
-    const data = await response.json();
+    const data = await api.get(url);
     return data.footprints || [];
   } catch (error) {
     console.error("Failed to compile streaming audit logs engine:", error);
