@@ -81,24 +81,25 @@ export const useOSStore = create<OSStore>()(
         pinnedToStart: ['explorer', 'settings', 'canvas', 'calculator'],
       },
 
-      // ==========================================
+// ==========================================
       // 🪟 WINDOW MANAGEMENT LOGIC 
       // ==========================================
       openApp: (appId, title) => {
-        const { windows, activeZIndex, recentApps } = get();
+        const { windows, recentApps, focusWindow } = get();
         const existingWindow = windows.find((w) => w.appId === appId);
 
-        // 🚀 NAYA: Recent apps logic (Jo app khuli usko list ke top par daalo, aur duplicates hatao)
-        const updatedRecents = [appId, ...recentApps.filter(id => id !== appId)].slice(0, 6); // Max 6 apps track karenge
+        // 🚀 Recent apps logic
+        const updatedRecents = [appId, ...recentApps.filter(id => id !== appId)].slice(0, 6);
 
         if (existingWindow) {
-          set({
-            activeZIndex: activeZIndex + 1,
-            recentApps: updatedRecents, // 👈 Save to recents
-            windows: windows.map((w) =>
-              w.appId === appId ? { ...w, isMinimized: false, zIndex: activeZIndex + 1 } : w
+          // Agar app pehle se open hai, usko unminimize karo aur normal focus laga do
+          set((state) => ({
+            recentApps: updatedRecents,
+            windows: state.windows.map((w) =>
+              w.appId === appId ? { ...w, isMinimized: false } : w
             ),
-          });
+          }));
+          focusWindow(existingWindow.id); // 👈 Re-using our smart focus logic
           return;
         }
 
@@ -118,13 +119,21 @@ export const useOSStore = create<OSStore>()(
           y: typeof window !== 'undefined' ? (window.innerHeight - config.height) / 2 + (Math.random() * 40 - 20) : 50,
           width: config.width,
           height: config.height,
-          zIndex: activeZIndex + 1,
+          zIndex: 9999, // Temp zIndex, normalization aage handle karega
         };
 
+        // 🚀 Z-INDEX NORMALIZATION FOR NEW APP
+        const baseZIndex = 10;
+        const allWindows = [...windows, newWindow].sort((a, b) => a.zIndex - b.zIndex);
+        const updatedWindows = allWindows.map((w, index) => ({
+          ...w,
+          zIndex: baseZIndex + index,
+        }));
+
         set({
-          windows: [...windows, newWindow],
-          activeZIndex: activeZIndex + 1,
-          recentApps: updatedRecents, // 👈 Save to recents when new app opens
+          windows: updatedWindows,
+          activeZIndex: baseZIndex + updatedWindows.length - 1,
+          recentApps: updatedRecents, 
         });
       },
 
@@ -133,18 +142,36 @@ export const useOSStore = create<OSStore>()(
       toggleMaximize: (id) => set((state) => ({ windows: state.windows.map((w) => (w.id === id ? { ...w, isMaximized: !w.isMaximized } : w)) })),
       
       focusWindow: (id) => {
-        const { activeZIndex, windows } = get();
+        const { windows, activeZIndex } = get();
         const target = windows.find(w => w.id === id);
-        if (target?.zIndex === activeZIndex) return;
         
+        // Agar target window exist nahi karti, ya already top par hai toh fालतू re-render roko
+        if (!target || target.zIndex === activeZIndex) return;
+        
+        // 🚀 Z-INDEX NORMALIZATION LOGIC (The Magic Trick 🎩)
+        // 1. Target window ko chhod kar baaki sabko current z-index ke hisaab se sort kar lo
+        const otherWindows = windows.filter(w => w.id !== id).sort((a, b) => a.zIndex - b.zIndex);
+        
+        // 2. Target window ko array ke sabse end me daalo (taaki wo top par aaye)
+        const reorderedWindows = [...otherWindows, target];
+        
+        // 3. Sabko tightly pack kar do wapas 10 se start karke (10, 11, 12, 13...)
+        const baseZIndex = 10;
+        const updatedWindows = reorderedWindows.map((w, index) => ({
+          ...w,
+          zIndex: baseZIndex + index,
+        }));
+
+        set({
+          windows: updatedWindows,
+          activeZIndex: baseZIndex + updatedWindows.length - 1,
+        });
+      },
+      updateWindowBounds: (id, bounds) => {
         set((state) => ({
-          activeZIndex: activeZIndex + 1,
-          windows: state.windows.map((w) => (w.id === id ? { ...w, zIndex: activeZIndex + 1 } : w)),
+          windows: state.windows.map((w) => (w.id === id ? { ...w, ...bounds } : w)),
         }));
       },
-
-      updateWindowBounds: (id, bounds) => set((state) => ({ windows: state.windows.map((w) => (w.id === id ? { ...w, ...bounds } : w)) })),
-
       // ==========================================
       // ☁️ CLOUD SYNC & PERSISTENCE LOGIC
       // ==========================================

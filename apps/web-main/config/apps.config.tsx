@@ -1,7 +1,7 @@
 import dynamic from 'next/dynamic';
-import { Folder, Terminal, PenTool, Image as ImageIcon, Settings, Activity, Calculator, Cpu, ShoppingBag, Code2, BookOpen } from 'lucide-react'; // 🚀 Added BookOpen
+import { Folder, Terminal, PenTool, Image as ImageIcon, Settings, Activity, Calculator, Cpu, ShoppingBag, Code2, BookOpen, Music } from 'lucide-react'; // 🚀 Added Music & BookOpen
 
-// 🚀 Lazy Load All App Components (Performance boost)
+// 🚀 Lazy Load All App Components (Performance boost - Stops OS from lagging on boot)
 const DriveDashboard = dynamic(() => import('@/components/Drive/DriveDashboard').then(m => m.DriveDashboard));
 const TaskManager = dynamic(() => import('@/components/os/apps/TaskManager').then(m => m.TaskManager));
 const NeuralCanvasApp = dynamic(() => import('@/components/os/apps/NeuralCanvasApp').then(m => m.NeuralCanvasApp));
@@ -13,6 +13,9 @@ const DigitalWellbeingApp = dynamic(() => import('@/components/os/apps/DigitalWe
 const AppStore = dynamic(() => import('@/components/os/apps/AppStore').then(m => m.AppStore || m.default));
 const RealmStudioApp = dynamic(() => import('@/components/os/apps/realm-studio/RealmStudio').then(m => m.RealmStudioApp || m.default));
 const DevDocsApp = dynamic(() => import('@/components/os/apps/DevDocs').then(m => m.DevDocsApp || m.default)); // 📚 Docs Injected!
+
+// 🎧 HYPER MUSIC MODULE
+const MusicApp = dynamic(() => import('@/components/os/apps/music/MusicApp').then(m => m.MusicApp));
 
 // 📦 App Definition Type
 export interface AppDefinition {
@@ -117,14 +120,23 @@ export const SYSTEM_APPS: Record<string, AppDefinition> = {
     config: { width: 1100, height: 750, resizable: true },
     component: RealmStudioApp
   },
-  // 📚 HYPER DOCS REGISTERED
   docs: {
     id: 'docs',
     name: 'Hyper Docs',
     icon: BookOpen,
-    color: 'text-[#f1fa8c]', // Bright yellow tint so it stands out in the dock
+    color: 'text-[#f1fa8c]', 
     isSystem: true,
     config: { width: 950, height: 700, resizable: true },
     component: DevDocsApp
-  }
+  },
+  // 🎧 NAYA MUSIC APP REGISTER HO GAYA YAHAN
+  music: {
+    id: 'music',
+    name: 'Hyper Music',
+    icon: Music,
+    color: 'text-[#8d6bff]', 
+    isSystem: true,
+    config: { width: 900, height: 600, resizable: true }, 
+    component: MusicApp
+  },
 };

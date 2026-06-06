@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, useDragControls, useMotionValue } from 'framer-motion';
 import { useOSStore } from '@/store/useOSStore';
 import { SYSTEM_APPS } from '@/config/apps.config';
@@ -37,6 +37,34 @@ export const Window: React.FC<WindowProps> = ({ id, children }) => {
   const y = useMotionValue(win?.y ?? (typeof window !== 'undefined' ? (window.innerHeight - defaultHeight) / 2 : 100));
   const w = useMotionValue(win?.width ?? defaultWidth);
   const h = useMotionValue(win?.height ?? defaultHeight);
+
+  // 🚀 BUG 3 FIX: Dynamic Drag Constraints (Strict Boundaries)
+  const [dragConstraints, setDragConstraints] = useState({
+    top: OS_TOP_BAR_HEIGHT,
+    left: -1000, 
+    right: 2000, 
+    bottom: 2000
+  });
+
+  useEffect(() => {
+    const updateBounds = () => {
+      if (typeof window !== 'undefined') {
+        const minVisible = 80; // Kitna hissa screen pe hamesha dikhna hi chahiye
+        const currentW = Number(w.get() || defaultWidth);
+
+        setDragConstraints({
+          top: OS_TOP_BAR_HEIGHT, // Top bar ke upar window nahi jaa sakti
+          left: -(currentW - minVisible), // Left me bahaar jaa sakti hai but 80px hamesha bachega
+          right: window.innerWidth - minVisible, // Right boundary
+          bottom: window.innerHeight - minVisible, // Bottom boundary
+        });
+      }
+    };
+
+    updateBounds();
+    window.addEventListener('resize', updateBounds);
+    return () => window.removeEventListener('resize', updateBounds);
+  }, [w, defaultWidth]);
 
   // 🧩 ATTACH HOOKS
   const { snapPreview, setSnapPreview, handleDrag } = useWindowDrag(OS_TOP_BAR_HEIGHT);
@@ -78,6 +106,11 @@ export const Window: React.FC<WindowProps> = ({ id, children }) => {
         dragMomentum={false}
         dragListener={false} 
         dragControls={dragControls}
+        
+        // 🚀 SMART DRAG CONSTRAINTS APPLIED HERE
+        dragConstraints={dragConstraints}
+        dragElastic={0} // 👈 Bounce effect hatane ke liye (solid window feel)
+        
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         // 🚀 BUG 2 FIX: Actual zIndex mapping from store
