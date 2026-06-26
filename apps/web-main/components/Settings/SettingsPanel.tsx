@@ -2,7 +2,8 @@
 
 import { useThemeStore } from "@/store/useThemeStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, LogOut } from "lucide-react";
+import { X, LogOut, Monitor, ArrowUpRight } from "lucide-react"; // 🚀 Naye icons import kiye
+import Link from "next/link"; // 🚀 Link import kiya navigation ke liye
 
 // Modular Segments
 import { ProfileSync } from "./segments/ProfileSync";
@@ -49,6 +50,34 @@ export function SettingsPanel() {
             <StorageAccess />
             <AppearanceMode />
             <DashboardModules />
+
+            {/* 🚀 Naya Hyper OS Launcher Card */}
+            <div className="mb-6 mt-2">
+              <div className={`p-5 rounded-[2rem] border transition-all flex items-center justify-between group 
+                ${isLight ? 'bg-white border-slate-200 hover:border-primary/50 hover:shadow-md' : 'bg-white/5 border-white/10 hover:border-primary/50'}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+                    <Monitor className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm tracking-wide">Hyper OS</h4>
+                    <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-500' : 'text-white/50'}`}>
+                      Boot to windowed desktop
+                    </p>
+                  </div>
+                </div>
+                
+                <Link 
+                  href="/os"
+                  onClick={toggleSettings} // 🚀 Click karte hi background mein settings band ho jayega
+                  className="p-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-transform duration-300 group-hover:scale-105 shadow-sm"
+                  title="Boot System"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
 
             {/* Terminate Session */}
             <button 

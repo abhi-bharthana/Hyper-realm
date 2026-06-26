@@ -5,6 +5,7 @@ include:
   - docker-compose.infra.yml
   - docker-compose.apps.yml
   - docker-compose.matrix.yml
+  - docker-compose.local.yml    # 🚀 NAYI ENTRY: District Digital OS (Commerce, Services, Local Transit)
 
 # Global network jo sab files share karengi
 networks:

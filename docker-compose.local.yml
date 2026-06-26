@@ -1,0 +1,22 @@
+services:
+
+  hyper-local-api:
+    build: 
+      context: ./services/hyper-local
+      dockerfile: Dockerfile
+    container_name: hyper-local-api
+    ports:
+      - "8085:8085"
+    environment:
+      # 🚀 Hostname wapas "hyper-db" kar diya hai (Service Name Resolution)
+      - POSTGRES_URL=postgres://${DB_USER}:${DB_PASSWORD}@hyper-db:5432/${DB_NAME}?sslmode=disable
+      - REDIS_URL=redis://hyper-redis:6379/2
+      - HYPER_ID_SERVICE_URL=http://hyper-id-service:8080 
+      - ENV=development
+    networks:
+      - hyper-realm-net  # 🚀 YEH WAPAS ADD KAR DIYA
+    depends_on:
+      hyper-db:
+        condition: service_started
+      hyper-redis:
+        condition: service_started

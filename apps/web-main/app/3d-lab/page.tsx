@@ -1,15 +1,18 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import CanvasStage from './CanvasStage'; 
-import { UploadCloud, Box, Settings, Sparkles, CloudArrowUp, Loader2 } from 'lucide-react';
-import { useAssetUpload } from '@/hooks/useAssetUpload';
-import { useGenerationQueue } from '@/hooks/useGenerationQueue'; // 👈 Naya hook
+
+// 🚀 FIX: Corrected import paths based on your actual directory structure
+import CanvasStage from '@/components/3d-lab/components/viewer/CanvasStage'; 
+import { useAssetUpload } from '@/components/3d-lab/hooks/useAssetUpload';
+import { useGenerationQueue } from '@/components/3d-lab/hooks/useGenerationQueue'; 
+
+import { UploadCloud, Box, Sparkles, Loader2 } from 'lucide-react';
 
 export default function ThreeDLabApp() {
   const [activeModelUrl, setActiveModelUrl] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<File | null>(null);
   
-  // 👈 State to hold Image for AI Generation
+  // State to hold Image for AI Generation
   const [generationAssetId, setGenerationAssetId] = useState<string | null>(null);
   
   const [isDragging, setIsDragging] = useState(false);
@@ -17,7 +20,7 @@ export default function ThreeDLabApp() {
 
   const { uploadAsset, isUploading, uploadProgress } = useAssetUpload();
   
-  // 👈 Connect Real-time WebSocket Queue
+  // Connect Real-time WebSocket Queue
   const { status: genStatus, generatedUrl } = useGenerationQueue(generationAssetId);
 
   // 🪄 THE MAGIC: Automatically display the 3D model when AI finishes!

@@ -1,31 +1,38 @@
-# Environment Variables
+Environment Variables
+
 .env
 *.env
 .env.local
 
-# Node.js / Next.js
+Node.js / Next.js
+
 node_modules/
 .next/
 out/
 build/
 
-# Go Binaries
+Go Binaries
+
 main
 *.exe
 *.out
 
-# RSA Keys & Certs (Sabse Important!)
+RSA Keys & Certs (Sabse Important!)
+
 services/hyper-id/certs/private.pem
 
-# OS Files
+OS Files
+
 .DS_Store
 Thumbs.db
 
-# Docker volumes / Data (Agar local directory map ki hai)
+Docker volumes / Data (Agar local directory map ki hai)
+
 pgdata/
 typesense_data/
 qdrant_data/
 
-# Ignore Kubernetes tools & Binaries
+Ignore Kubernetes tools & Binaries
+
 kubectl
 minikube-linux-amd64

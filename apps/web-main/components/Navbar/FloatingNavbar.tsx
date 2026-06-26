@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { LayoutGrid } from "lucide-react"; // 🚀 Naya icon import kiya Apps Hub ke liye
 import { useThemeStore } from "@/store/useThemeStore";
 import { useChatStore } from "@/store/useChatStore";
 import { api, API_URLS } from "@/lib/api";
@@ -154,13 +156,28 @@ export function FloatingNavbar() {
         <>
           <BrandBlock isLight={isLight} />
           
-          <ActionBlock 
-            userName={userName}
-            toggleDiscover={toggleDiscover}
-            toggleSettings={toggleSettings}
-            setIsSearchOpen={setIsSearchOpen}
-            handleChatToggle={handleChatToggle}
-          />
+          {/* 🚀 ActionBlock aur naya Apps Hub link ko ek flex container mei daal diya */}
+          <div className="flex items-center gap-2">
+            <Link 
+              href="/apps"
+              className={`p-2 rounded-full transition-colors flex items-center justify-center ${
+                isLight 
+                  ? 'hover:bg-slate-200 text-slate-700' 
+                  : 'hover:bg-white/10 text-slate-300 hover:text-white'
+              }`}
+              title="Apps Hub"
+            >
+              <LayoutGrid className="w-5 h-5" />
+            </Link>
+
+            <ActionBlock 
+              userName={userName}
+              toggleDiscover={toggleDiscover}
+              toggleSettings={toggleSettings}
+              setIsSearchOpen={setIsSearchOpen}
+              handleChatToggle={handleChatToggle}
+            />
+          </div>
         </>
       )}
     </nav>
